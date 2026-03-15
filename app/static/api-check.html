@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>接口完整性检查页</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f1ea;
+        --panel: #fffdf9;
+        --line: #d8d0c2;
+        --text: #26211b;
+        --muted: #6b6258;
+        --brand: #8b4513;
+        --brand-2: #3b6b57;
+        --danger: #b42318;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(139, 69, 19, 0.12), transparent 32%),
+          linear-gradient(180deg, #f8f4ed 0%, var(--bg) 100%);
+        color: var(--text);
+      }
+
+      .page {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+      }
+
+      .hero {
+        padding: 24px;
+        border: 1px solid var(--line);
+        background: linear-gradient(135deg, rgba(139, 69, 19, 0.08), rgba(59, 107, 87, 0.08));
+        border-radius: 18px;
+      }
+
+      .hero p,
+      .tips,
+      .hint {
+        color: var(--muted);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 16px;
+        margin-top: 20px;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 16px;
+        box-shadow: 0 8px 30px rgba(31, 24, 16, 0.06);
+      }
+
+      .card h3 {
+        margin-bottom: 6px;
+      }
+
+      .endpoint {
+        margin: 8px 0 12px;
+        font-size: 13px;
+        color: var(--brand);
+        word-break: break-all;
+      }
+
+      label {
+        display: block;
+        font-size: 13px;
+        color: var(--muted);
+        margin: 10px 0 6px;
+      }
+
+      input,
+      textarea,
+      select {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--text);
+        font: inherit;
+      }
+
+      textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      button {
+        margin-top: 12px;
+        padding: 10px 14px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--brand);
+        color: #fff;
+        cursor: pointer;
+        font: inherit;
+      }
+
+      button.secondary {
+        background: var(--brand-2);
+      }
+
+      button.danger {
+        background: var(--danger);
+      }
+
+      pre {
+        margin: 0;
+        padding: 14px;
+        background: #171411;
+        color: #f6efe7;
+        border-radius: 14px;
+        overflow: auto;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .status {
+        margin-top: 10px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .full {
+        margin-top: 16px;
+      }
+
+      @media (max-width: 640px) {
+        .page {
+          padding: 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <section class="hero">
+        <h1>后端接口完整性检查页</h1>
+        <p>
+          这个页面用于手工串联当前后端接口，快速确认登录、当前用户、门店、组织、角色权限、员工档案这些主流程是否正常。
+        </p>
+        <div class="grid">
+          <div>
+            <label for="baseUrl">API 根地址</label>
+            <input id="baseUrl" value="/api/v1" />
+          </div>
+          <div>
+            <label for="token">当前 Bearer Token</label>
+            <input id="token" placeholder="登录成功后会自动填充" />
+          </div>
+        </div>
+        <div class="toolbar">
+          <button type="button" class="secondary" id="saveTokenBtn">保存 Token</button>
+          <button type="button" class="danger" id="clearTokenBtn">清空 Token</button>
+        </div>
+        <p class="tips">
+          默认管理员通常是 <code>admin@example.com / changethis</code>。如果你改过 `.env`，请用你自己的账号密码。
+        </p>
+      </section>
+
+      <div class="grid">
+        <section class="card">
+          <h3>B 端密码登录</h3>
+          <div class="endpoint">POST /auth/backend/password-login</div>
+          <label for="loginAccount">账号或邮箱</label>
+          <input id="loginAccount" value="admin@example.com" />
+          <label for="loginPassword">密码</label>
+          <input id="loginPassword" type="password" value="changethis" />
+          <button type="button" data-action="login">登录并保存 Token</button>
+        </section>
+
+        <section class="card">
+          <h3>当前用户</h3>
+          <div class="endpoint">GET /auth/me</div>
+          <p class="hint">检查当前用户、角色、权限、数据范围是否符合预期。</p>
+          <button type="button" data-action="me">获取当前用户</button>
+        </section>
+
+        <section class="card">
+          <h3>门店列表</h3>
+          <div class="endpoint">GET /stores/</div>
+          <button type="button" data-action="listStores">获取门店列表</button>
+        </section>
+
+        <section class="card">
+          <h3>创建门店</h3>
+          <div class="endpoint">POST /stores/</div>
+          <label for="storeCode">门店编码</label>
+          <input id="storeCode" />
+          <label for="storeName">门店名称</label>
+          <input id="storeName" value="接口检查门店" />
+          <button type="button" data-action="createStore">创建门店</button>
+        </section>
+
+        <section class="card">
+          <h3>创建组织节点</h3>
+          <div class="endpoint">POST /org/nodes</div>
+          <label for="orgStoreId">所属门店 ID</label>
+          <input id="orgStoreId" placeholder="可先创建门店，页面会自动填充" />
+          <label for="orgName">节点名称</label>
+          <input id="orgName" value="接口检查营运部" />
+          <label for="orgNodeType">节点类型</label>
+          <select id="orgNodeType">
+            <option value="DEPARTMENT">DEPARTMENT</option>
+            <option value="GROUP">GROUP</option>
+          </select>
+          <button type="button" data-action="createOrgNode">创建组织节点</button>
+        </section>
+
+        <section class="card">
+          <h3>权限列表</h3>
+          <div class="endpoint">GET /iam/permissions</div>
+          <button type="button" data-action="listPermissions">获取权限列表</button>
+        </section>
+
+        <section class="card">
+          <h3>创建角色</h3>
+          <div class="endpoint">POST /iam/roles</div>
+          <label for="roleCode">角色编码</label>
+          <input id="roleCode" />
+          <label for="roleName">角色名称</label>
+          <input id="roleName" value="接口检查角色" />
+          <button type="button" data-action="createRole">创建角色</button>
+        </section>
+
+        <section class="card">
+          <h3>创建员工账号</h3>
+          <div class="endpoint">POST /users/</div>
+          <label for="userUsername">登录账号</label>
+          <input id="userUsername" />
+          <label for="userEmail">邮箱</label>
+          <input id="userEmail" />
+          <label for="userPassword">初始密码</label>
+          <input id="userPassword" value="password1234" />
+          <button type="button" data-action="createUser">创建员工账号</button>
+        </section>
+
+        <section class="card">
+          <h3>员工档案</h3>
+          <div class="endpoint">GET /employees/{user_id}/profile</div>
+          <label for="employeeUserId">用户 ID</label>
+          <input id="employeeUserId" placeholder="创建员工后会自动填充" />
+          <button type="button" data-action="employeeProfile">获取员工档案</button>
+        </section>
+
+        <section class="card">
+          <h3>绑定用户组织</h3>
+          <div class="endpoint">POST /org/bindings</div>
+          <label for="bindingUserId">用户 ID</label>
+          <input id="bindingUserId" placeholder="创建员工后会自动填充" />
+          <label for="bindingOrgNodeId">组织节点 ID</label>
+          <input id="bindingOrgNodeId" placeholder="创建组织后会自动填充" />
+          <button type="button" data-action="bindOrg">创建组织绑定</button>
+        </section>
+
+        <section class="card">
+          <h3>分配用户角色</h3>
+          <div class="endpoint">PUT /iam/users/{user_id}/roles</div>
+          <label for="assignRoleUserId">用户 ID</label>
+          <input id="assignRoleUserId" />
+          <label for="assignRoleRoleId">角色 ID</label>
+          <input id="assignRoleRoleId" />
+          <button type="button" data-action="assignRole">分配角色</button>
+        </section>
+
+        <section class="card">
+          <h3>分配数据范围</h3>
+          <div class="endpoint">PUT /iam/users/{user_id}/data-scopes</div>
+          <label for="scopeUserId">用户 ID</label>
+          <input id="scopeUserId" />
+          <label for="scopeStoreId">门店 ID</label>
+          <input id="scopeStoreId" />
+          <button type="button" data-action="assignScope">分配门店范围</button>
+        </section>
+      </div>
+
+      <section class="card full">
+        <h2>请求结果</h2>
+        <p class="status" id="statusText">还没有发送请求。</p>
+        <pre id="resultPanel">{}</pre>
+      </section>
+    </div>
+
+    <script>
+      const tokenInput = document.getElementById("token");
+      const baseUrlInput = document.getElementById("baseUrl");
+      const resultPanel = document.getElementById("resultPanel");
+      const statusText = document.getElementById("statusText");
+
+      const ids = {
+        storeCode: document.getElementById("storeCode"),
+        storeName: document.getElementById("storeName"),
+        orgStoreId: document.getElementById("orgStoreId"),
+        orgName: document.getElementById("orgName"),
+        orgNodeType: document.getElementById("orgNodeType"),
+        roleCode: document.getElementById("roleCode"),
+        roleName: document.getElementById("roleName"),
+        userUsername: document.getElementById("userUsername"),
+        userEmail: document.getElementById("userEmail"),
+        userPassword: document.getElementById("userPassword"),
+        employeeUserId: document.getElementById("employeeUserId"),
+        bindingUserId: document.getElementById("bindingUserId"),
+        bindingOrgNodeId: document.getElementById("bindingOrgNodeId"),
+        assignRoleUserId: document.getElementById("assignRoleUserId"),
+        assignRoleRoleId: document.getElementById("assignRoleRoleId"),
+        scopeUserId: document.getElementById("scopeUserId"),
+        scopeStoreId: document.getElementById("scopeStoreId"),
+        loginAccount: document.getElementById("loginAccount"),
+        loginPassword: document.getElementById("loginPassword"),
+      };
+
+      function randomCode(prefix) {
+        return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+      }
+
+      function fillDefaults() {
+        if (!ids.storeCode.value) ids.storeCode.value = randomCode("store");
+        if (!ids.roleCode.value) ids.roleCode.value = randomCode("role");
+        if (!ids.userUsername.value) ids.userUsername.value = randomCode("user");
+        if (!ids.userEmail.value) ids.userEmail.value = `${randomCode("member")}@example.com`;
+      }
+
+      fillDefaults();
+      tokenInput.value = localStorage.getItem("api-check-token") || "";
+
+      function saveToken() {
+        localStorage.setItem("api-check-token", tokenInput.value.trim());
+      }
+
+      function setResult(title, payload) {
+        statusText.textContent = title;
+        resultPanel.textContent = JSON.stringify(payload, null, 2);
+      }
+
+      async function request(path, options = {}) {
+        const token = tokenInput.value.trim();
+        const headers = {
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        };
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+        const response = await fetch(`${baseUrlInput.value}${path}`, {
+          ...options,
+          headers,
+        });
+        const data = await response.json().catch(() => ({}));
+        setResult(`${options.method || "GET"} ${path} -> ${response.status}`, data);
+        return { response, data };
+      }
+
+      async function handleAction(action) {
+        fillDefaults();
+
+        if (action === "login") {
+          const { data } = await request("/auth/backend/password-login", {
+            method: "POST",
+            body: JSON.stringify({
+              account: ids.loginAccount.value.trim(),
+              password: ids.loginPassword.value,
+            }),
+          });
+          if (data?.data?.access_token) {
+            tokenInput.value = data.data.access_token;
+            saveToken();
+          }
+          return;
+        }
+
+        if (action === "me") {
+          await request("/auth/me");
+          return;
+        }
+
+        if (action === "listStores") {
+          await request("/stores/");
+          return;
+        }
+
+        if (action === "createStore") {
+          const { data } = await request("/stores/", {
+            method: "POST",
+            body: JSON.stringify({
+              code: ids.storeCode.value.trim(),
+              name: ids.storeName.value.trim(),
+              status: "ACTIVE",
+            }),
+          });
+          const storeId = data?.data?.id;
+          if (storeId) {
+            ids.orgStoreId.value = storeId;
+            ids.scopeStoreId.value = storeId;
+          }
+          return;
+        }
+
+        if (action === "createOrgNode") {
+          const { data } = await request("/org/nodes", {
+            method: "POST",
+            body: JSON.stringify({
+              store_id: ids.orgStoreId.value.trim(),
+              parent_id: null,
+              name: ids.orgName.value.trim(),
+              node_type: ids.orgNodeType.value,
+              sort_order: 1,
+              is_active: true,
+            }),
+          });
+          const orgNodeId = data?.data?.id;
+          if (orgNodeId) {
+            ids.bindingOrgNodeId.value = orgNodeId;
+          }
+          return;
+        }
+
+        if (action === "listPermissions") {
+          await request("/iam/permissions");
+          return;
+        }
+
+        if (action === "createRole") {
+          const { data } = await request("/iam/roles", {
+            method: "POST",
+            body: JSON.stringify({
+              code: ids.roleCode.value.trim(),
+              name: ids.roleName.value.trim(),
+              status: "ACTIVE",
+            }),
+          });
+          const roleId = data?.data?.id;
+          if (roleId) {
+            ids.assignRoleRoleId.value = roleId;
+          }
+          return;
+        }
+
+        if (action === "createUser") {
+          const { data } = await request("/users/", {
+            method: "POST",
+            body: JSON.stringify({
+              username: ids.userUsername.value.trim(),
+              email: ids.userEmail.value.trim(),
+              password: ids.userPassword.value,
+              user_type: "EMPLOYEE",
+              is_active: true,
+              is_superuser: false,
+              full_name: "接口检查员工",
+              nickname: "测试员工",
+              mobile: "13800000099",
+              status: "ACTIVE",
+              primary_store_id: null,
+              primary_department_id: null,
+            }),
+          });
+          const userId = data?.data?.id;
+          if (userId) {
+            ids.employeeUserId.value = userId;
+            ids.bindingUserId.value = userId;
+            ids.assignRoleUserId.value = userId;
+            ids.scopeUserId.value = userId;
+          }
+          return;
+        }
+
+        if (action === "employeeProfile") {
+          await request(`/employees/${ids.employeeUserId.value.trim()}/profile`);
+          return;
+        }
+
+        if (action === "bindOrg") {
+          await request("/org/bindings", {
+            method: "POST",
+            body: JSON.stringify({
+              user_id: ids.bindingUserId.value.trim(),
+              org_node_id: ids.bindingOrgNodeId.value.trim(),
+              is_primary: true,
+              position_name: "店长",
+            }),
+          });
+          return;
+        }
+
+        if (action === "assignRole") {
+          await request(`/iam/users/${ids.assignRoleUserId.value.trim()}/roles`, {
+            method: "PUT",
+            body: JSON.stringify({
+              role_ids: [ids.assignRoleRoleId.value.trim()],
+            }),
+          });
+          return;
+        }
+
+        if (action === "assignScope") {
+          await request(`/iam/users/${ids.scopeUserId.value.trim()}/data-scopes`, {
+            method: "PUT",
+            body: JSON.stringify({
+              scopes: [
+                {
+                  scope_type: "STORE",
+                  store_id: ids.scopeStoreId.value.trim(),
+                  org_node_id: null,
+                },
+              ],
+            }),
+          });
+        }
+      }
+
+      document.querySelectorAll("[data-action]").forEach((button) => {
+        button.addEventListener("click", () => handleAction(button.dataset.action));
+      });
+
+      document.getElementById("saveTokenBtn").addEventListener("click", () => {
+        saveToken();
+        setResult("Token 已保存到浏览器本地存储", {
+          token_preview: tokenInput.value.trim().slice(0, 24),
+        });
+      });
+
+      document.getElementById("clearTokenBtn").addEventListener("click", () => {
+        tokenInput.value = "";
+        localStorage.removeItem("api-check-token");
+        setResult("Token 已清空", {});
+      });
+    </script>
+  </body>
+</html>
