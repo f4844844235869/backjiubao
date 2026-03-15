@@ -8,23 +8,40 @@ from app.core.config import settings
 from app.core.db import engine, init_db
 from app.main import app
 from app.models import (
+    SKU,
     EmployeeEmploymentRecord,
     EmployeeProfile,
+    GiftAccount,
+    GiftTemplate,
+    InventoryBalance,
+    InventoryTransaction,
     Item,
+    Member,
     MiniappAccount,
     Notification,
+    Order,
+    OrderItem,
     OrgNode,
+    Payment,
     Permission,
+    PrincipalAccount,
+    Product,
+    RechargePlan,
     Role,
     RoleGrant,
     RolePermission,
+    ShiftHandover,
     Store,
+    TransferOrder,
     User,
     UserDataScope,
     UserOrgBinding,
     UserPhoneBinding,
     UserRole,
+    WalletTransaction,
+    Warehouse,
 )
+from app.modules.product.models import Category, FundLimit
 from tests.utils.user import authentication_token_from_email
 from tests.utils.utils import get_superuser_token_headers
 
@@ -34,6 +51,26 @@ def db() -> Generator[Session, None, None]:
     with Session(engine) as session:
         init_db(session)
         yield session
+        # New parallel line tables
+        session.execute(delete(WalletTransaction))
+        session.execute(delete(GiftAccount))
+        session.execute(delete(PrincipalAccount))
+        session.execute(delete(Member))
+        session.execute(delete(RechargePlan))
+        session.execute(delete(Payment))
+        session.execute(delete(OrderItem))
+        session.execute(delete(Order))
+        session.execute(delete(ShiftHandover))
+        session.execute(delete(InventoryTransaction))
+        session.execute(delete(InventoryBalance))
+        session.execute(delete(TransferOrder))
+        session.execute(delete(Warehouse))
+        session.execute(delete(SKU))
+        session.execute(delete(Product))
+        session.execute(delete(FundLimit))
+        session.execute(delete(GiftTemplate))
+        session.execute(delete(Category))
+        # Original tables
         statement = delete(Item)
         session.execute(statement)
         statement = delete(EmployeeEmploymentRecord)
