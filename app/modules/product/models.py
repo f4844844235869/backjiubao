@@ -2,6 +2,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Optional
 
 from sqlalchemy import DateTime, Numeric
 from sqlmodel import Field, Relationship, SQLModel
@@ -137,7 +138,7 @@ class Product(ProductBase, table=True):
         description="更新时间",
     )
 
-    category: "Category | None" = Relationship(back_populates="products")
+    category: Optional["Category"] = Relationship(back_populates="products")
     skus: list["SKU"] = Relationship(back_populates="product")
 
 

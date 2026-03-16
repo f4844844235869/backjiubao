@@ -2,6 +2,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Optional
 
 from sqlalchemy import DateTime, Numeric
 from sqlmodel import Field, Relationship, SQLModel
@@ -53,10 +54,10 @@ class Member(MemberBase, table=True):
         description="更新时间",
     )
 
-    principal_account: "PrincipalAccount | None" = Relationship(
+    principal_account: Optional["PrincipalAccount"] = Relationship(
         back_populates="member"
     )
-    gift_account: "GiftAccount | None" = Relationship(back_populates="member")
+    gift_account: Optional["GiftAccount"] = Relationship(back_populates="member")
 
 
 class MemberPublic(MemberBase):
