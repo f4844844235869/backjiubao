@@ -200,7 +200,7 @@ def test_employee_cross_store_access_flow(client: TestClient) -> None:
         headers=cross_store_context_headers,
     )
     assert store_list_cross_context_response.status_code == 403
-    assert store_list_cross_context_response.json()["code"] == "DATA_SCOPE_DENIED"
+    assert store_list_cross_context_response.json()["code"] == "AUTH_PERMISSION_DENIED"
 
     me_cross_context_response = client.get(
         f"{settings.API_V1_STR}/auth/me",

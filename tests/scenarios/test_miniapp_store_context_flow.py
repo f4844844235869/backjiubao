@@ -170,10 +170,17 @@ def test_miniapp_store_context_flow(client: TestClient) -> None:
 
     assign_role_response = client.put(
         f"{settings.API_V1_STR}/iam/users/{miniapp_user_id}/roles",
-        headers=admin_headers,
+        headers={**admin_headers, "X-Current-Store-Id": store_a_id},
         json={"role_ids": [miniapp_role_id]},
     )
     assert assign_role_response.status_code == 200
+
+    assign_second_role_response = client.put(
+        f"{settings.API_V1_STR}/iam/users/{miniapp_user_id}/roles",
+        headers={**admin_headers, "X-Current-Store-Id": store_b_id},
+        json={"role_ids": [miniapp_role_id]},
+    )
+    assert assign_second_role_response.status_code == 200
 
     assign_scope_response = client.put(
         f"{settings.API_V1_STR}/iam/users/{miniapp_user_id}/data-scopes",

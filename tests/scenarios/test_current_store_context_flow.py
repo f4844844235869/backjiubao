@@ -131,7 +131,12 @@ def test_current_store_context_flow(client: TestClient) -> None:
 
     assert client.put(
         f"{settings.API_V1_STR}/iam/users/{manager_user_id}/roles",
-        headers=admin_headers,
+        headers={**admin_headers, "X-Current-Store-Id": store_a_id},
+        json={"role_ids": [manager_role_id]},
+    ).status_code == 200
+    assert client.put(
+        f"{settings.API_V1_STR}/iam/users/{manager_user_id}/roles",
+        headers={**admin_headers, "X-Current-Store-Id": store_b_id},
         json={"role_ids": [manager_role_id]},
     ).status_code == 200
 
@@ -196,7 +201,7 @@ def test_current_store_context_flow(client: TestClient) -> None:
 
     employee_a_response = client.post(
         f"{settings.API_V1_STR}/employees/onboard",
-        headers=manager_headers,
+        headers={**manager_headers, "X-Current-Store-Id": store_a_id},
         json={
             "user": {
                 "username": random_lower_string(),
@@ -215,7 +220,7 @@ def test_current_store_context_flow(client: TestClient) -> None:
 
     employee_b_response = client.post(
         f"{settings.API_V1_STR}/employees/onboard",
-        headers=manager_headers,
+        headers={**manager_headers, "X-Current-Store-Id": store_b_id},
         json={
             "user": {
                 "username": random_lower_string(),

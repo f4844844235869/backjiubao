@@ -230,10 +230,6 @@ class DataScopeContext:
 def get_current_user_profile(
     request: Request, session: SessionDep, current_user: CurrentUser
 ) -> CurrentUserProfile:
-    roles = iam_service.list_user_roles(session=session, user_id=current_user.id)
-    permissions = iam_service.list_user_permissions(
-        session=session, user_id=current_user.id
-    )
     data_scopes = iam_service.list_user_data_scopes(
         session=session, user_id=current_user.id
     )
@@ -245,6 +241,16 @@ def get_current_user_profile(
     current_store_id = scope.resolve_current_store_id(request=request)
     if current_store_id is None:
         current_store_id = current_user.primary_store_id
+    roles = iam_service.list_user_roles(
+        session=session,
+        user_id=current_user.id,
+        store_id=current_store_id,
+    )
+    permissions = iam_service.list_user_permissions(
+        session=session,
+        user_id=current_user.id,
+        store_id=current_store_id,
+    )
     current_org_node_id = current_user.primary_department_id
     if current_store_id and not session.get(Store, current_store_id):
         current_store_id = None
@@ -436,10 +442,28 @@ DataScopeDep = Annotated[DataScopeContext, Depends(get_data_scope_context)]
 
 
 def require_roles(*role_codes: str):
-    def dependency(session: SessionDep, current_user: CurrentUser) -> User:
+    def dependency(request: Request, session: SessionDep, current_user: CurrentUser) -> User:
         if current_user.is_superuser:
             return current_user
-        roles = iam_service.list_user_roles(session=session, user_id=current_user.id)
+        current_store_id = (
+            request.headers.get("X-Current-Store-Id")
+            or request.query_params.get("current_store_id")
+        )
+        store_uuid = None
+        if current_store_id:
+            try:
+                store_uuid = uuid.UUID(str(current_store_id))
+            except ValueError as exc:
+                raise AppException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    code="VALIDATION_ERROR",
+                    message="current_store_id 不是合法的 UUID",
+                ) from exc
+        if store_uuid is None:
+            store_uuid = current_user.primary_store_id
+        roles = iam_service.list_user_roles(
+            session=session, user_id=current_user.id, store_id=store_uuid
+        )
         current_role_codes = {role.code for role in roles}
         missing_roles = [code for code in role_codes if code not in current_role_codes]
         if missing_roles:
@@ -454,11 +478,27 @@ def require_roles(*role_codes: str):
 
 
 def require_permissions(*permission_codes: str):
-    def dependency(session: SessionDep, current_user: CurrentUser) -> User:
+    def dependency(request: Request, session: SessionDep, current_user: CurrentUser) -> User:
         if current_user.is_superuser:
             return current_user
+        current_store_id = (
+            request.headers.get("X-Current-Store-Id")
+            or request.query_params.get("current_store_id")
+        )
+        store_uuid = None
+        if current_store_id:
+            try:
+                store_uuid = uuid.UUID(str(current_store_id))
+            except ValueError as exc:
+                raise AppException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    code="VALIDATION_ERROR",
+                    message="current_store_id 不是合法的 UUID",
+                ) from exc
+        if store_uuid is None:
+            store_uuid = current_user.primary_store_id
         permissions = iam_service.list_user_permissions(
-            session=session, user_id=current_user.id
+            session=session, user_id=current_user.id, store_id=store_uuid
         )
         current_permission_codes = {permission.code for permission in permissions}
         missing_permissions = [

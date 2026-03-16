@@ -11,6 +11,7 @@ from app.models.user import UserPublic
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.modules.store.models import Store
 
 
 class RoleBase(SQLModel):
@@ -52,7 +53,7 @@ class Role(RoleBase, table=True):
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
     )
-    user_roles: list["UserRole"] = Relationship(back_populates="role")
+    user_store_roles: list["UserStoreRole"] = Relationship(back_populates="role")
     role_permissions: list["RolePermission"] = Relationship(back_populates="role")
 
 
@@ -75,19 +76,21 @@ class Permission(PermissionBase, table=True):
     )
 
 
-class UserRole(SQLModel, table=True):
-    __tablename__ = "user_role"
+class UserStoreRole(SQLModel, table=True):
+    __tablename__ = "user_store_role"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = Field(foreign_key="user.id", nullable=False, ondelete="CASCADE")
+    store_id: uuid.UUID = Field(foreign_key="store.id", nullable=False, ondelete="CASCADE")
     role_id: uuid.UUID = Field(foreign_key="role.id", nullable=False, ondelete="CASCADE")
     created_at: datetime = Field(
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
     )
 
-    user: "User" = Relationship(back_populates="user_roles")
-    role: Role = Relationship(back_populates="user_roles")
+    user: "User" = Relationship(back_populates="store_roles")
+    store: "Store" = Relationship(back_populates="user_store_roles")
+    role: Role = Relationship(back_populates="user_store_roles")
 
 
 class RoleGrant(SQLModel, table=True):

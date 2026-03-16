@@ -197,8 +197,16 @@ def bind_miniapp_phone(
 
 
 def build_access_token(*, session: Session, user: User) -> Token:
-    roles = iam_service.list_user_roles(session=session, user_id=user.id)
-    permissions = iam_service.list_user_permissions(session=session, user_id=user.id)
+    roles = iam_service.list_user_roles(
+        session=session,
+        user_id=user.id,
+        store_id=user.primary_store_id,
+    )
+    permissions = iam_service.list_user_permissions(
+        session=session,
+        user_id=user.id,
+        store_id=user.primary_store_id,
+    )
     now = get_datetime_utc()
     user.last_login_at = now
     user.updated_at = now

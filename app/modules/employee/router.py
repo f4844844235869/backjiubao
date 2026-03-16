@@ -260,7 +260,9 @@ def onboard_employee(
     permission_codes = {
         item.code
         for item in iam_service.list_user_permissions(
-            session=session, user_id=current_user.id
+            session=session,
+            user_id=current_user.id,
+            store_id=current_store_id or current_user.primary_store_id,
         )
     }
     org_node = session.get(OrgNode, body.primary_org_node_id)
@@ -386,7 +388,12 @@ def onboard_employee(
 
     saved_roles = []
     if role_ids:
-        iam_service.replace_user_roles(session=session, user_id=user.id, role_ids=role_ids)
+        iam_service.replace_user_store_roles(
+            session=session,
+            user_id=user.id,
+            store_id=org_node.store_id,
+            role_ids=role_ids,
+        )
         saved_roles = list(session.exec(select(Role).where(Role.id.in_(role_ids))).all())
 
     saved_scopes = []

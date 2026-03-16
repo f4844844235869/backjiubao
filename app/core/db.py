@@ -14,7 +14,7 @@ from app.models import (
     UserCreate,
     UserDataScope,
     UserOrgBinding,
-    UserRole,
+    UserStoreRole,
 )
 from app.models.base import get_datetime_utc
 from app.modules.employee.models import EmployeeProfile
@@ -269,6 +269,28 @@ SAMPLE_EMPLOYEE_DEFS = [
         "org_key": "bar",
         "role_codes": ["bartender"],
         "scope_defs": [{"scope_type": "SELF"}],
+    },
+    {
+        "username": "multi.store.demo",
+        "full_name": "陈亦凡",
+        "nickname": "跨店示例",
+        "mobile": "13900001008",
+        "employee_no": "M001",
+        "position_name": "星河店值班",
+        "store_code": "xinghe",
+        "org_key": "hall",
+        "role_codes": ["shift_leader"],
+        "store_role_codes": {
+            "xinghe": ["shift_leader"],
+            "jiangnan": ["server"],
+        },
+        "scope_defs": [
+            {"scope_type": "STORE", "store_code": "xinghe"},
+            {"scope_type": "STORE", "store_code": "jiangnan"},
+        ],
+        "extra_bindings": [
+            {"store_code": "jiangnan", "org_key": "hall", "position_name": "江南店支援"}
+        ],
     },
 ]
 
@@ -541,18 +563,53 @@ def _ensure_extra_binding(
     return binding
 
 
-def _ensure_employee_roles(*, session: Session, user: User, role_codes: list[str]) -> None:
+def _ensure_employee_roles(
+    *, session: Session, user: User, store_id, role_codes: list[str]
+) -> None:
     roles = session.exec(select(Role).where(Role.code.in_(role_codes))).all()
     role_ids = {item.id for item in roles}
-    existing = session.exec(select(UserRole).where(UserRole.user_id == user.id)).all()
+    existing = session.exec(
+        select(UserStoreRole)
+        .where(UserStoreRole.user_id == user.id)
+        .where(UserStoreRole.store_id == store_id)
+    ).all()
     existing_role_ids = {item.role_id for item in existing}
     for binding in existing:
         if binding.role_id not in role_ids:
             session.delete(binding)
     for role in roles:
         if role.id not in existing_role_ids:
-            session.add(UserRole(user_id=user.id, role_id=role.id))
+            session.add(UserStoreRole(user_id=user.id, store_id=store_id, role_id=role.id))
     session.commit()
+
+
+def _ensure_employee_store_roles(
+    *,
+    session: Session,
+    user: User,
+    store_map: dict[str, Store],
+    primary_store_id,
+    role_codes: list[str],
+    store_role_codes: dict[str, list[str]] | None = None,
+) -> None:
+    if store_role_codes:
+        for store_code, codes in store_role_codes.items():
+            store = store_map.get(store_code)
+            if not store:
+                continue
+            _ensure_employee_roles(
+                session=session,
+                user=user,
+                store_id=store.id,
+                role_codes=codes,
+            )
+        return
+    _ensure_employee_roles(
+        session=session,
+        user=user,
+        store_id=primary_store_id,
+        role_codes=role_codes,
+    )
 
 
 def _ensure_employee_scopes(
@@ -704,10 +761,13 @@ def seed_sample_data(session: Session) -> None:
                 org_node=extra_org,
                 position_name=extra_binding["position_name"],
             )
-        _ensure_employee_roles(
+        _ensure_employee_store_roles(
             session=session,
             user=user,
+            store_map=store_map,
+            primary_store_id=primary_org.store_id,
             role_codes=employee_def["role_codes"],
+            store_role_codes=employee_def.get("store_role_codes"),
         )
         _ensure_employee_scopes(
             session=session,
@@ -777,12 +837,6 @@ def init_db(session: Session) -> None:
     for permission_id in permission_ids:
         if permission_id not in existing_permission_ids:
             session.add(RolePermission(role_id=role.id, permission_id=permission_id))
-
-    user_role = session.exec(
-        select(UserRole).where(UserRole.user_id == user.id).where(UserRole.role_id == role.id)
-    ).first()
-    if not user_role:
-        session.add(UserRole(user_id=user.id, role_id=role.id))
 
     all_scope = session.exec(
         select(UserDataScope)

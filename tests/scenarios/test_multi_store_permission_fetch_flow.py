@@ -15,7 +15,7 @@ def _login(client: TestClient, account: str, password: str) -> dict[str, str]:
 
 
 def test_multi_store_permission_fetch_flow(client: TestClient) -> None:
-    """验证多门店员工切店后，权限集合保持全局并集，变化的是当前门店上下文。"""
+    """验证多门店员工切店后，权限集合按当前门店变化。"""
 
     admin_headers = _login(
         client, settings.FIRST_SUPERUSER, settings.FIRST_SUPERUSER_PASSWORD
@@ -136,12 +136,6 @@ def test_multi_store_permission_fetch_flow(client: TestClient) -> None:
     )
     employee_user_id = employee_response.json()["data"]["id"]
 
-    assert client.put(
-        f"{settings.API_V1_STR}/iam/users/{employee_user_id}/roles",
-        headers=admin_headers,
-        json={"role_ids": [read_role_id, create_role_id]},
-    ).status_code == 200
-
     assert client.post(
         f"{settings.API_V1_STR}/org/bindings",
         headers=admin_headers,
@@ -163,6 +157,18 @@ def test_multi_store_permission_fetch_flow(client: TestClient) -> None:
             "position_name": "巡店",
         },
     ).status_code == 201
+
+    assert client.put(
+        f"{settings.API_V1_STR}/iam/users/{employee_user_id}/roles",
+        headers={**admin_headers, "X-Current-Store-Id": store_a_id},
+        json={"role_ids": [read_role_id, create_role_id]},
+    ).status_code == 200
+
+    assert client.put(
+        f"{settings.API_V1_STR}/iam/users/{employee_user_id}/roles",
+        headers={**admin_headers, "X-Current-Store-Id": store_b_id},
+        json={"role_ids": [read_role_id]},
+    ).status_code == 200
 
     assert client.put(
         f"{settings.API_V1_STR}/iam/users/{employee_user_id}/data-scopes",
@@ -198,11 +204,7 @@ def test_multi_store_permission_fetch_flow(client: TestClient) -> None:
     switched_me_payload = switched_me_response.json()["data"]
     assert switched_me_payload["current_store_id"] == store_b_id
     assert switched_me_payload["current_store_name"] == "权限获取二号店"
-    assert set(switched_me_payload["permissions"]) == {
-        "employee.read",
-        "employee.create",
-    }
-    assert switched_me_payload["permissions"] == default_me_payload["permissions"]
+    assert set(switched_me_payload["permissions"]) == {"employee.read"}
     assert {item["store_id"] for item in switched_me_payload["accessible_stores"]} == {
         store_a_id,
         store_b_id,

@@ -657,6 +657,18 @@ def test_delete_org_node_returns_conflict_when_has_children(
 
 
 def test_assign_user_role(client: TestClient, superuser_token_headers: dict[str, str]) -> None:
+    store_response = client.post(
+        "/api/v1/stores/",
+        headers=superuser_token_headers,
+        json={
+            "code": f"ROLE-STORE-{random_lower_string()[:8]}",
+            "name": "角色分配门店",
+            "status": "ACTIVE",
+        },
+    )
+    assert store_response.status_code == 201
+    store_id = store_response.json()["data"]["id"]
+
     role_response = client.post(
         "/api/v1/iam/roles",
         headers=superuser_token_headers,
@@ -681,14 +693,14 @@ def test_assign_user_role(client: TestClient, superuser_token_headers: dict[str,
             "nickname": "测试",
             "mobile": "13800000001",
             "status": "ACTIVE",
-            "primary_store_id": None,
+            "primary_store_id": store_id,
             "primary_department_id": None,
         },
     )
     user_id = user_response.json()["data"]["id"]
 
     response = client.put(
-        f"/api/v1/iam/users/{user_id}/roles",
+        f"/api/v1/iam/users/{user_id}/stores/{store_id}/roles",
         headers=superuser_token_headers,
         json={"role_ids": [role_id]},
     )
@@ -702,6 +714,18 @@ def test_assign_user_role(client: TestClient, superuser_token_headers: dict[str,
 def test_non_superuser_only_reads_own_permissions(
     client: TestClient, superuser_token_headers: dict[str, str]
 ) -> None:
+    store_response = client.post(
+        "/api/v1/stores/",
+        headers=superuser_token_headers,
+        json={
+            "code": f"PERM-STORE-{random_lower_string()[:8]}",
+            "name": "权限门店",
+            "status": "ACTIVE",
+        },
+    )
+    assert store_response.status_code == 201
+    store_id = store_response.json()["data"]["id"]
+
     role_response = client.post(
         "/api/v1/iam/roles",
         headers=superuser_token_headers,
@@ -750,7 +774,7 @@ def test_non_superuser_only_reads_own_permissions(
             "nickname": "权限查看",
             "mobile": "13800000011",
             "status": "ACTIVE",
-            "primary_store_id": None,
+            "primary_store_id": store_id,
             "primary_department_id": None,
         },
     )
@@ -758,7 +782,7 @@ def test_non_superuser_only_reads_own_permissions(
     user_id = user_response.json()["data"]["id"]
 
     assign_role_response = client.put(
-        f"/api/v1/iam/users/{user_id}/roles",
+        f"/api/v1/iam/users/{user_id}/stores/{store_id}/roles",
         headers=superuser_token_headers,
         json={"role_ids": [role_id]},
     )
@@ -787,6 +811,18 @@ def test_non_superuser_only_reads_own_permissions(
 def test_non_superuser_only_reads_visible_roles(
     client: TestClient, superuser_token_headers: dict[str, str]
 ) -> None:
+    store_response = client.post(
+        "/api/v1/stores/",
+        headers=superuser_token_headers,
+        json={
+            "code": f"VIS-STORE-{random_lower_string()[:8]}",
+            "name": "可见角色门店",
+            "status": "ACTIVE",
+        },
+    )
+    assert store_response.status_code == 201
+    store_id = store_response.json()["data"]["id"]
+
     regional_role_response = client.post(
         "/api/v1/iam/roles",
         headers=superuser_token_headers,
@@ -854,13 +890,13 @@ def test_non_superuser_only_reads_visible_roles(
             "nickname": "经理",
             "mobile": "13800000221",
             "status": "ACTIVE",
-            "primary_store_id": None,
+            "primary_store_id": store_id,
             "primary_department_id": None,
         },
     )
     manager_user_id = manager_response.json()["data"]["id"]
     assign_role_response = client.put(
-        f"/api/v1/iam/users/{manager_user_id}/roles",
+        f"/api/v1/iam/users/{manager_user_id}/stores/{store_id}/roles",
         headers=superuser_token_headers,
         json={"role_ids": [store_role_id]},
     )
@@ -902,6 +938,18 @@ def test_non_superuser_only_reads_visible_roles(
 def test_creator_only_sees_new_role_by_default(
     client: TestClient, superuser_token_headers: dict[str, str]
 ) -> None:
+    store_response = client.post(
+        "/api/v1/stores/",
+        headers=superuser_token_headers,
+        json={
+            "code": f"CRT-STORE-{random_lower_string()[:8]}",
+            "name": "角色创建门店",
+            "status": "ACTIVE",
+        },
+    )
+    assert store_response.status_code == 201
+    store_id = store_response.json()["data"]["id"]
+
     creator_role_response = client.post(
         "/api/v1/iam/roles",
         headers=superuser_token_headers,
@@ -947,13 +995,13 @@ def test_creator_only_sees_new_role_by_default(
             "nickname": "创建者",
             "mobile": "13800000222",
             "status": "ACTIVE",
-            "primary_store_id": None,
+            "primary_store_id": store_id,
             "primary_department_id": None,
         },
     )
     creator_user_id = creator_user_response.json()["data"]["id"]
     client.put(
-        f"/api/v1/iam/users/{creator_user_id}/roles",
+        f"/api/v1/iam/users/{creator_user_id}/stores/{store_id}/roles",
         headers=superuser_token_headers,
         json={"role_ids": [creator_role_id]},
     )
@@ -973,13 +1021,13 @@ def test_creator_only_sees_new_role_by_default(
             "nickname": "另一个",
             "mobile": "13800000223",
             "status": "ACTIVE",
-            "primary_store_id": None,
+            "primary_store_id": store_id,
             "primary_department_id": None,
         },
     )
     other_user_id = other_user_response.json()["data"]["id"]
     client.put(
-        f"/api/v1/iam/users/{other_user_id}/roles",
+        f"/api/v1/iam/users/{other_user_id}/stores/{store_id}/roles",
         headers=superuser_token_headers,
         json={"role_ids": [creator_role_id]},
     )
@@ -1124,7 +1172,7 @@ def test_non_superuser_cannot_assign_ungranted_role(
     )
     manager_user_id = manager_response.json()["data"]["id"]
     client.put(
-        f"/api/v1/iam/users/{manager_user_id}/roles",
+        f"/api/v1/iam/users/{manager_user_id}/stores/{store_id}/roles",
         headers=superuser_token_headers,
         json={"role_ids": [store_role_id]},
     )
@@ -1193,16 +1241,16 @@ def test_non_superuser_cannot_assign_ungranted_role(
     }
 
     denied_response = client.put(
-        f"/api/v1/iam/users/{employee_user_id}/roles",
-        headers=manager_headers,
+        f"/api/v1/iam/users/{employee_user_id}/stores/{store_id}/roles",
+        headers={**manager_headers, "X-Current-Store-Id": store_id},
         json={"role_ids": [regional_role_id]},
     )
     assert denied_response.status_code == 403
     assert denied_response.json()["code"] == "AUTH_GRANT_DENIED"
 
     success_response = client.put(
-        f"/api/v1/iam/users/{employee_user_id}/roles",
-        headers=manager_headers,
+        f"/api/v1/iam/users/{employee_user_id}/stores/{store_id}/roles",
+        headers={**manager_headers, "X-Current-Store-Id": store_id},
         json={"role_ids": [staff_role_id]},
     )
     assert success_response.status_code == 200
@@ -1364,7 +1412,7 @@ def test_assign_roles_and_scopes_for_secondary_store_employee_in_current_store_c
     assert create_binding_response.status_code == 201
 
     assign_role_response = client.put(
-        f"/api/v1/iam/users/{user_id}/roles",
+        f"/api/v1/iam/users/{user_id}/stores/{secondary_store_id}/roles",
         headers={
             **superuser_token_headers,
             "X-Current-Store-Id": secondary_store_id,
@@ -1449,14 +1497,14 @@ def test_read_user_authorization_summary(
             "nickname": "摘要",
             "mobile": "13800000003",
             "status": "ACTIVE",
-            "primary_store_id": None,
+            "primary_store_id": store_id,
             "primary_department_id": None,
         },
     )
     user_id = user_response.json()["data"]["id"]
 
     assign_role_response = client.put(
-        f"/api/v1/iam/users/{user_id}/roles",
+        f"/api/v1/iam/users/{user_id}/stores/{store_id}/roles",
         headers=superuser_token_headers,
         json={"role_ids": [role_id]},
     )
@@ -1556,7 +1604,7 @@ def test_unbind_role_permissions_takes_effect_immediately(
             "nickname": "解绑权限",
             "mobile": "13800000004",
             "status": "ACTIVE",
-            "primary_store_id": None,
+            "primary_store_id": store_id,
             "primary_department_id": None,
         },
     )
@@ -1564,7 +1612,7 @@ def test_unbind_role_permissions_takes_effect_immediately(
     user_id = user_response.json()["data"]["id"]
 
     assign_role_response = client.put(
-        f"/api/v1/iam/users/{user_id}/roles",
+        f"/api/v1/iam/users/{user_id}/stores/{store_id}/roles",
         headers=superuser_token_headers,
         json={"role_ids": [role_id]},
     )

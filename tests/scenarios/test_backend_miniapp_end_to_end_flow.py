@@ -177,10 +177,17 @@ def test_backend_miniapp_end_to_end_flow(client: TestClient) -> None:
 
     assign_role_response = client.put(
         f"{settings.API_V1_STR}/iam/users/{miniapp_user_id}/roles",
-        headers=admin_headers,
+        headers={**admin_headers, "X-Current-Store-Id": store_a_id},
         json={"role_ids": [miniapp_role_id]},
     )
     assert assign_role_response.status_code == 200
+
+    assign_second_role_response = client.put(
+        f"{settings.API_V1_STR}/iam/users/{miniapp_user_id}/roles",
+        headers={**admin_headers, "X-Current-Store-Id": store_b_id},
+        json={"role_ids": [miniapp_role_id]},
+    )
+    assert assign_second_role_response.status_code == 200
 
     assign_scope_response = client.put(
         f"{settings.API_V1_STR}/iam/users/{miniapp_user_id}/data-scopes",
@@ -196,7 +203,7 @@ def test_backend_miniapp_end_to_end_flow(client: TestClient) -> None:
 
     summary_response = client.get(
         f"{settings.API_V1_STR}/iam/users/{miniapp_user_id}/authorization-summary",
-        headers=admin_headers,
+        headers={**admin_headers, "X-Current-Store-Id": store_a_id},
     )
     assert summary_response.status_code == 200
     summary_payload = summary_response.json()["data"]

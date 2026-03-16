@@ -9,6 +9,7 @@ from sqlmodel import Field, Relationship, SQLModel
 from app.models.base import get_datetime_utc
 
 if TYPE_CHECKING:
+    from app.modules.iam.models import UserStoreRole
     from app.modules.org.models import OrgNode
 
 
@@ -43,6 +44,7 @@ class Store(StoreBase, table=True):
         description="更新时间",
     )
     org_nodes: list["OrgNode"] = Relationship(back_populates="store")
+    user_store_roles: list["UserStoreRole"] = Relationship(back_populates="store")
 
 
 class StorePublic(StoreBase):

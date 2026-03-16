@@ -149,6 +149,13 @@ def test_employee_multi_store_membership_flow(client: TestClient) -> None:
     )
     assert second_binding_response.status_code == 201
 
+    assign_secondary_role_response = client.put(
+        f"{settings.API_V1_STR}/iam/users/{employee_id}/roles",
+        headers={**admin_headers, "X-Current-Store-Id": store_b_id},
+        json={"role_ids": [role_id]},
+    )
+    assert assign_secondary_role_response.status_code == 200
+
     employee_a_profile_response = client.post(
         f"{settings.API_V1_STR}/employees/onboard",
         headers=admin_headers,

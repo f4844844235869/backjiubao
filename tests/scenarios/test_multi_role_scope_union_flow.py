@@ -146,7 +146,7 @@ def test_multi_role_scope_union_flow(client: TestClient) -> None:
 
     assert client.put(
         f"{settings.API_V1_STR}/iam/users/{union_user_id}/roles",
-        headers=admin_headers,
+        headers={**admin_headers, "X-Current-Store-Id": store_a_id},
         json={"role_ids": [store_read_role_id, employee_read_role_id]},
     ).status_code == 200
 

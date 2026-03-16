@@ -22,8 +22,8 @@ from app.modules.iam.models import (
     UserAuthorizationSummary,
     UserDataScope,
     UserDataScopeAssign,
-    UserRole,
     UserRoleAssign,
+    UserStoreRole,
 )
 from app.modules.iam.service import (
     ensure_creator_role_grant,
@@ -35,13 +35,39 @@ from app.modules.iam.service import (
     replace_role_grants,
     replace_role_permissions,
     replace_user_data_scopes,
-    replace_user_roles,
+    replace_user_store_roles,
 )
 from app.modules.notification.service import create_notification
-from app.modules.org.models import OrgNode
+from app.modules.org.models import OrgNode, UserOrgBinding
 from app.modules.org.service import get_user_binding_in_store
 
 router = APIRouter(prefix="/iam", tags=["IAM"])
+
+
+def _resolve_effective_store_id(
+    *,
+    request: Request,
+    scope: DataScopeDep | None,
+    current_user: CurrentUser,
+) -> uuid.UUID | None:
+    if scope is not None:
+        current_store_id = scope.resolve_current_store_id(request=request)
+    else:
+        raw_store_id = request.headers.get("X-Current-Store-Id") or request.query_params.get(
+            "current_store_id"
+        )
+        if raw_store_id:
+            try:
+                current_store_id = uuid.UUID(str(raw_store_id))
+            except ValueError:
+                raise_api_error(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    code="VALIDATION_ERROR",
+                    message="current_store_id 不是合法的 UUID",
+                )
+        else:
+            current_store_id = None
+    return current_store_id or current_user.primary_store_id
 
 
 def _build_role_public(*, session: SessionDep, role: Role) -> RolePublic:
@@ -85,6 +111,24 @@ def _ensure_user_matches_current_store(
         store_id=current_store_id,
     ):
         return
+    if session.exec(
+        select(UserStoreRole)
+        .where(UserStoreRole.user_id == user.id)
+        .where(UserStoreRole.store_id == current_store_id)
+    ).first():
+        return
+    data_scopes = session.exec(
+        select(UserDataScope).where(UserDataScope.user_id == user.id)
+    ).all()
+    for item in data_scopes:
+        if item.scope_type == "ALL":
+            return
+        if item.scope_type == "STORE" and item.store_id == current_store_id:
+            return
+        if item.scope_type == "DEPARTMENT" and item.org_node_id:
+            org_node = session.get(OrgNode, item.org_node_id)
+            if org_node and org_node.store_id == current_store_id:
+                return
     raise_api_error(
         status_code=status.HTTP_403_FORBIDDEN,
         code="DATA_SCOPE_DENIED",
@@ -109,13 +153,14 @@ def _ensure_permissions_assignable(
     session: SessionDep,
     current_user: CurrentUser,
     permission_ids: list[uuid.UUID],
+    store_id: uuid.UUID | None,
 ) -> None:
     if current_user.is_superuser or not permission_ids:
         return
     current_permission_codes = {
         item.code
         for item in iam_service.list_user_permissions(
-            session=session, user_id=current_user.id
+            session=session, user_id=current_user.id, store_id=store_id
         )
     }
     permissions = session.exec(
@@ -137,6 +182,7 @@ def _ensure_roles_assignable(
     session: SessionDep,
     current_user: CurrentUser,
     roles: list[Role],
+    store_id: uuid.UUID | None,
 ) -> None:
     if current_user.is_superuser or not roles:
         return
@@ -144,6 +190,7 @@ def _ensure_roles_assignable(
         session=session,
         user_id=current_user.id,
         is_superuser=current_user.is_superuser,
+        store_id=store_id,
     )
     unauthorized_roles = [role.name for role in roles if role.id not in visible_role_ids]
     if unauthorized_roles:
@@ -155,7 +202,7 @@ def _ensure_roles_assignable(
     current_permission_codes = {
         item.code
         for item in iam_service.list_user_permissions(
-            session=session, user_id=current_user.id
+            session=session, user_id=current_user.id, store_id=store_id
         )
     }
     exceeded_codes: set[str] = set()
@@ -202,6 +249,11 @@ def _ensure_scopes_assignable(
     response_model=ApiResponse[list[RolePublic]],
 )
 def read_roles(request: Request, session: SessionDep, current_user: CurrentUser):
+    current_store_id = _resolve_effective_store_id(
+        request=request,
+        scope=None,
+        current_user=current_user,
+    )
     if current_user.is_superuser:
         roles = session.exec(select(Role).order_by(Role.created_at.desc())).all()
     else:
@@ -209,6 +261,7 @@ def read_roles(request: Request, session: SessionDep, current_user: CurrentUser)
             session=session,
             user_id=current_user.id,
             is_superuser=current_user.is_superuser,
+            store_id=current_store_id,
         )
     return success_response(
         request,
@@ -267,6 +320,11 @@ def update_role(
     body: RoleManageUpdate,
     current_user: CurrentUser,
 ):
+    current_store_id = _resolve_effective_store_id(
+        request=request,
+        scope=None,
+        current_user=current_user,
+    )
     role = session.get(Role, role_id)
     if not role:
         raise_api_error(
@@ -292,6 +350,7 @@ def update_role(
             session=session,
             current_user=current_user,
             permission_ids=body.permission_ids,
+            store_id=current_store_id,
         )
         permissions = (
             list(
@@ -376,7 +435,7 @@ def delete_role(request: Request, session: SessionDep, role_id: uuid.UUID):
     for item in role_permissions:
         session.delete(item)
     user_roles = session.exec(
-        select(UserRole).where(UserRole.role_id == role_id)
+        select(UserStoreRole).where(UserStoreRole.role_id == role_id)
     ).all()
     for item in user_roles:
         session.delete(item)
@@ -406,6 +465,11 @@ def read_permissions(
     session: SessionDep,
     current_user: CurrentUser,
 ):
+    current_store_id = _resolve_effective_store_id(
+        request=request,
+        scope=None,
+        current_user=current_user,
+    )
     if current_user.is_superuser:
         permissions = session.exec(
             select(Permission).order_by(Permission.created_at.desc())
@@ -414,6 +478,7 @@ def read_permissions(
         permissions = iam_service.list_user_permissions(
             session=session,
             user_id=current_user.id,
+            store_id=current_store_id,
         )
     return success_response(
         request,
@@ -445,6 +510,7 @@ def read_user_authorization_summary(
             message="用户不存在",
         )
     current_store_id = scope.resolve_current_store_id(request=request)
+    effective_store_id = current_store_id or user.primary_store_id
     _ensure_user_matches_current_store(
         session=session,
         user=user,
@@ -452,8 +518,12 @@ def read_user_authorization_summary(
         message="当前门店上下文不匹配目标用户",
     )
     _ensure_user_in_scope(scope=scope, user=user)
-    roles = iam_service.list_user_roles(session=session, user_id=user_id)
-    permissions = iam_service.list_user_permissions(session=session, user_id=user_id)
+    roles = iam_service.list_user_roles(
+        session=session, user_id=user_id, store_id=effective_store_id
+    )
+    permissions = iam_service.list_user_permissions(
+        session=session, user_id=user_id, store_id=effective_store_id
+    )
     data_scopes = iam_service.list_user_data_scopes(session=session, user_id=user_id)
     summary = UserAuthorizationSummary(
         **user.model_dump(),
@@ -502,8 +572,9 @@ def create_permission(request: Request, session: SessionDep, body: PermissionBas
 
 
 @router.put(
-    "/users/{user_id}/roles",
+    "/users/{user_id}/stores/{store_id}/roles",
     summary="分配用户角色",
+    include_in_schema=False,
     dependencies=[Depends(require_permissions("iam.user.assign_role"))],
     response_model=ApiResponse[list[RolePublic]],
 )
@@ -511,6 +582,7 @@ def assign_user_roles(
     request: Request,
     session: SessionDep,
     user_id: uuid.UUID,
+    store_id: uuid.UUID,
     body: UserRoleAssign,
     current_user: CurrentUser,
     scope: DataScopeDep,
@@ -522,7 +594,13 @@ def assign_user_roles(
             code="USER_NOT_FOUND",
             message="用户不存在",
         )
-    scope.resolve_current_store_id(request=request)
+    current_store_id = scope.resolve_current_store_id(request=request)
+    if current_store_id and current_store_id != store_id:
+        raise_api_error(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code="DATA_SCOPE_DENIED",
+            message="当前门店上下文不允许修改其他门店角色",
+        )
     _ensure_user_in_scope(scope=scope, user=user)
     roles = (
         list(session.exec(select(Role).where(Role.id.in_(body.role_ids))).all())
@@ -535,8 +613,18 @@ def assign_user_roles(
             code="ROLE_NOT_FOUND",
             message="存在未找到的角色",
         )
-    _ensure_roles_assignable(session=session, current_user=current_user, roles=roles)
-    bindings = replace_user_roles(session=session, user_id=user_id, role_ids=body.role_ids)
+    _ensure_roles_assignable(
+        session=session,
+        current_user=current_user,
+        roles=roles,
+        store_id=store_id,
+    )
+    bindings = replace_user_store_roles(
+        session=session,
+        user_id=user_id,
+        store_id=store_id,
+        role_ids=body.role_ids,
+    )
     role_ids = [binding.role_id for binding in bindings]
     saved_roles = (
         session.exec(select(Role).where(Role.id.in_(role_ids))).all() if role_ids else []
@@ -547,7 +635,7 @@ def assign_user_roles(
         user_id=user_id,
         notification_type="USER_ROLE_CHANGED",
         title="角色已更新",
-        content=f"你的角色已更新为：{role_names}。",
+        content=f"你在当前门店的角色已更新为：{role_names}。",
     )
     session.commit()
     return success_response(
@@ -557,6 +645,59 @@ def assign_user_roles(
             for role in saved_roles
         ],
         message="分配用户角色成功",
+    )
+
+
+@router.put(
+    "/users/{user_id}/roles",
+    summary="按当前门店分配用户角色",
+    dependencies=[Depends(require_permissions("iam.user.assign_role"))],
+    response_model=ApiResponse[list[RolePublic]],
+)
+def assign_user_roles_compat(
+    request: Request,
+    session: SessionDep,
+    user_id: uuid.UUID,
+    body: UserRoleAssign,
+    current_user: CurrentUser,
+    scope: DataScopeDep,
+):
+    target_user = session.get(User, user_id)
+    if not target_user:
+        raise_api_error(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="USER_NOT_FOUND",
+            message="用户不存在",
+        )
+    store_id = _resolve_effective_store_id(
+        request=request,
+        scope=scope,
+        current_user=current_user,
+    )
+    if store_id is None:
+        store_id = target_user.primary_store_id
+    if store_id is None:
+        first_binding = session.exec(
+            select(OrgNode.store_id)
+            .join(UserOrgBinding, UserOrgBinding.org_node_id == OrgNode.id)
+            .where(UserOrgBinding.user_id == user_id)
+            .order_by(UserOrgBinding.created_at.asc())
+        ).first()
+        store_id = first_binding
+    if store_id is None:
+        raise_api_error(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="CURRENT_STORE_REQUIRED",
+            message="缺少当前门店上下文，请通过请求头 X-Current-Store-Id 传入门店 ID",
+        )
+    return assign_user_roles(
+        request=request,
+        session=session,
+        user_id=user_id,
+        store_id=store_id,
+        body=body,
+        current_user=current_user,
+        scope=scope,
     )
 
 

@@ -12,7 +12,7 @@ from app.models.base import get_datetime_utc
 if TYPE_CHECKING:
     from app.models.item import Item
     from app.modules.employee.models import EmployeeProfile
-    from app.modules.iam.models import UserDataScope, UserRole
+    from app.modules.iam.models import UserDataScope, UserStoreRole
     from app.modules.miniapp.models import MiniappAccount, UserPhoneBinding
     from app.modules.notification.models import Notification
     from app.modules.org.models import UserOrgBinding
@@ -107,7 +107,7 @@ class User(UserBase, table=True):
     employee_profile: "EmployeeProfile" = Relationship(back_populates="user")
     miniapp_accounts: list["MiniappAccount"] = Relationship(back_populates="user")
     phone_bindings: list["UserPhoneBinding"] = Relationship(back_populates="user")
-    user_roles: list["UserRole"] = Relationship(back_populates="user")
+    store_roles: list["UserStoreRole"] = Relationship(back_populates="user")
     data_scopes: list["UserDataScope"] = Relationship(back_populates="user")
     org_bindings: list["UserOrgBinding"] = Relationship(back_populates="user")
     notifications: list["Notification"] = Relationship(back_populates="user")

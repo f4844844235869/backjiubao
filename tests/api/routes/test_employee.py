@@ -119,7 +119,7 @@ def test_miniapp_user_cannot_read_employee_profile_without_permission(
 
     response = client.get(
         f"/api/v1/employees/{employee.id}/profile",
-        headers=miniapp_headers,
+        headers={**miniapp_headers, "X-Current-Store-Id": str(store.id)},
     )
 
     assert response.status_code == 403
@@ -187,8 +187,11 @@ def test_miniapp_user_can_read_employee_profile_after_assign_permission_and_scop
     iam_service.replace_role_permissions(
         session=db, role_id=role.id, permission_ids=[permission.id]
     )
-    iam_service.replace_user_roles(
-        session=db, user_id=miniapp_user_id, role_ids=[role.id]
+    iam_service.replace_user_store_roles(
+        session=db,
+        user_id=miniapp_user_id,
+        store_id=store.id,
+        role_ids=[role.id],
     )
     iam_service.replace_user_data_scopes(
         session=db,
@@ -205,7 +208,7 @@ def test_miniapp_user_can_read_employee_profile_after_assign_permission_and_scop
 
     response = client.get(
         f"/api/v1/employees/{employee.id}/profile",
-        headers=miniapp_headers,
+        headers={**miniapp_headers, "X-Current-Store-Id": str(store.id)},
     )
 
     assert response.status_code == 200

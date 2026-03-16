@@ -159,7 +159,7 @@ def test_role_grant_boundary_flow(client: TestClient) -> None:
 
     assign_manager_role_response = client.put(
         f"{settings.API_V1_STR}/iam/users/{manager_user_id}/roles",
-        headers=admin_headers,
+        headers={**admin_headers, "X-Current-Store-Id": store_id},
         json={"role_ids": [store_role_id]},
     )
     assert assign_manager_role_response.status_code == 200
@@ -235,7 +235,7 @@ def test_role_grant_boundary_flow(client: TestClient) -> None:
 
     denied_assign_response = client.put(
         f"{settings.API_V1_STR}/iam/users/{employee_user_id}/roles",
-        headers=manager_headers,
+        headers={**manager_headers, "X-Current-Store-Id": store_id},
         json={"role_ids": [regional_role_id]},
     )
     assert denied_assign_response.status_code == 403
@@ -243,7 +243,7 @@ def test_role_grant_boundary_flow(client: TestClient) -> None:
 
     allowed_assign_response = client.put(
         f"{settings.API_V1_STR}/iam/users/{employee_user_id}/roles",
-        headers=manager_headers,
+        headers={**manager_headers, "X-Current-Store-Id": store_id},
         json={"role_ids": [staff_role_id]},
     )
     assert allowed_assign_response.status_code == 200
@@ -281,7 +281,7 @@ def test_role_grant_boundary_flow(client: TestClient) -> None:
 
     admin_assign_custom_role_response = client.put(
         f"{settings.API_V1_STR}/iam/users/{employee_user_id}/roles",
-        headers=admin_headers,
+        headers={**admin_headers, "X-Current-Store-Id": store_id},
         json={"role_ids": [custom_role_id]},
     )
     assert admin_assign_custom_role_response.status_code == 200

@@ -23,7 +23,7 @@ from app.models import (
     UserDataScope,
     UserOrgBinding,
     UserPhoneBinding,
-    UserRole,
+    UserStoreRole,
 )
 from tests.utils.user import authentication_token_from_email
 from tests.utils.utils import get_superuser_token_headers
@@ -50,7 +50,7 @@ def db() -> Generator[Session, None, None]:
         session.execute(statement)
         statement = delete(RoleGrant)
         session.execute(statement)
-        statement = delete(UserRole)
+        statement = delete(UserStoreRole)
         session.execute(statement)
         statement = delete(UserDataScope)
         session.execute(statement)

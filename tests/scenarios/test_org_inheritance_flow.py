@@ -140,7 +140,7 @@ def test_org_inheritance_flow(client: TestClient) -> None:
 
     assert client.put(
         f"{settings.API_V1_STR}/iam/users/{leader_user_id}/roles",
-        headers=admin_headers,
+        headers={**admin_headers, "X-Current-Store-Id": store_id},
         json={"role_ids": [leader_role_id]},
     ).status_code == 200
     assert client.post(

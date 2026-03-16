@@ -8,8 +8,14 @@ from app.modules.iam.models import (
     RoleGrant,
     RolePermission,
     UserDataScope,
-    UserRole,
+    UserStoreRole,
 )
+
+
+def _get_user(*, session: Session, user_id: uuid.UUID):
+    from app.models import User
+
+    return session.get(User, user_id)
 
 
 def list_role_permissions(*, session: Session, role_id: uuid.UUID) -> list[Permission]:
@@ -21,24 +27,43 @@ def list_role_permissions(*, session: Session, role_id: uuid.UUID) -> list[Permi
     return list(session.exec(statement).all())
 
 
-def list_user_roles(*, session: Session, user_id: uuid.UUID) -> list[Role]:
+def list_user_roles(
+    *, session: Session, user_id: uuid.UUID, store_id: uuid.UUID | None = None
+) -> list[Role]:
+    user = _get_user(session=session, user_id=user_id)
+    if user and user.is_superuser:
+        admin_role = session.exec(
+            select(Role).where(Role.code == "admin").where(Role.status == "ACTIVE")
+        ).first()
+        return [admin_role] if admin_role else []
+    if store_id is None:
+        return []
     statement = (
         select(Role)
-        .join(UserRole, UserRole.role_id == Role.id)
-        .where(UserRole.user_id == user_id)
+        .join(UserStoreRole, UserStoreRole.role_id == Role.id)
+        .where(UserStoreRole.user_id == user_id)
+        .where(UserStoreRole.store_id == store_id)
         .where(Role.status == "ACTIVE")
     )
     return list(session.exec(statement).all())
 
 
-def list_user_permissions(*, session: Session, user_id: uuid.UUID) -> list[Permission]:
+def list_user_permissions(
+    *, session: Session, user_id: uuid.UUID, store_id: uuid.UUID | None = None
+) -> list[Permission]:
+    user = _get_user(session=session, user_id=user_id)
+    if user and user.is_superuser:
+        return list(session.exec(select(Permission)).all())
+    if store_id is None:
+        return []
     statement = (
         select(Permission)
         .distinct()
         .join(RolePermission, RolePermission.permission_id == Permission.id)
         .join(Role, Role.id == RolePermission.role_id)
-        .join(UserRole, UserRole.role_id == Role.id)
-        .where(UserRole.user_id == user_id)
+        .join(UserStoreRole, UserStoreRole.role_id == Role.id)
+        .where(UserStoreRole.user_id == user_id)
+        .where(UserStoreRole.store_id == store_id)
         .where(Role.status == "ACTIVE")
     )
     return list(session.exec(statement).all())
@@ -51,8 +76,12 @@ def list_user_data_scopes(
     return list(session.exec(statement).all())
 
 
-def list_user_role_bindings(*, session: Session, user_id: uuid.UUID) -> list[UserRole]:
-    statement = select(UserRole).where(UserRole.user_id == user_id)
+def list_user_store_role_bindings(
+    *, session: Session, user_id: uuid.UUID, store_id: uuid.UUID | None = None
+) -> list[UserStoreRole]:
+    statement = select(UserStoreRole).where(UserStoreRole.user_id == user_id)
+    if store_id is not None:
+        statement = statement.where(UserStoreRole.store_id == store_id)
     return list(session.exec(statement).all())
 
 
@@ -129,12 +158,16 @@ def ensure_creator_role_grant(
 
 
 def list_visible_role_ids_for_user(
-    *, session: Session, user_id: uuid.UUID, is_superuser: bool
+    *,
+    session: Session,
+    user_id: uuid.UUID,
+    is_superuser: bool,
+    store_id: uuid.UUID | None = None,
 ) -> set[uuid.UUID]:
     if is_superuser:
         return {item.id for item in session.exec(select(Role)).all()}
 
-    current_roles = list_user_roles(session=session, user_id=user_id)
+    current_roles = list_user_roles(session=session, user_id=user_id, store_id=store_id)
     current_role_ids = {item.id for item in current_roles}
     role_grants = (
         session.exec(
@@ -151,10 +184,17 @@ def list_visible_role_ids_for_user(
 
 
 def list_visible_roles_for_user(
-    *, session: Session, user_id: uuid.UUID, is_superuser: bool
+    *,
+    session: Session,
+    user_id: uuid.UUID,
+    is_superuser: bool,
+    store_id: uuid.UUID | None = None,
 ) -> list[Role]:
     visible_role_ids = list_visible_role_ids_for_user(
-        session=session, user_id=user_id, is_superuser=is_superuser
+        session=session,
+        user_id=user_id,
+        is_superuser=is_superuser,
+        store_id=store_id,
     )
     if not visible_role_ids:
         return []
@@ -163,15 +203,35 @@ def list_visible_roles_for_user(
     )
 
 
-def replace_user_roles(
-    *, session: Session, user_id: uuid.UUID, role_ids: list[uuid.UUID]
-) -> list[UserRole]:
-    session.exec(delete(UserRole).where(UserRole.user_id == user_id))
+def replace_user_store_roles(
+    *, session: Session, user_id: uuid.UUID, store_id: uuid.UUID, role_ids: list[uuid.UUID]
+) -> list[UserStoreRole]:
+    session.exec(
+        delete(UserStoreRole)
+        .where(UserStoreRole.user_id == user_id)
+        .where(UserStoreRole.store_id == store_id)
+    )
     session.flush()
     for role_id in dict.fromkeys(role_ids):
-        session.add(UserRole(user_id=user_id, role_id=role_id))
+        session.add(UserStoreRole(user_id=user_id, store_id=store_id, role_id=role_id))
     session.commit()
-    return list_user_role_bindings(session=session, user_id=user_id)
+    return list_user_store_role_bindings(
+        session=session, user_id=user_id, store_id=store_id
+    )
+
+
+def replace_user_roles(
+    *, session: Session, user_id: uuid.UUID, role_ids: list[uuid.UUID]
+) -> list[UserStoreRole]:
+    user = _get_user(session=session, user_id=user_id)
+    if not user or not user.primary_store_id:
+        return []
+    return replace_user_store_roles(
+        session=session,
+        user_id=user_id,
+        store_id=user.primary_store_id,
+        role_ids=role_ids,
+    )
 
 
 def list_role_permission_bindings(
@@ -204,10 +264,14 @@ def replace_user_data_scopes(
 
 
 def seed_permissions(*, session: Session, permission_defs: list[dict[str, str]]) -> None:
-    existing_codes = set(session.exec(select(Permission.code)).all())
     for item in permission_defs:
-        if item["code"] in existing_codes:
+        existing = session.exec(
+            select(Permission).where(Permission.code == item["code"])
+        ).first()
+        if existing:
+            existing.name = item["name"]
+            existing.module = item["module"]
+            session.add(existing)
             continue
         session.add(Permission(**item))
-        existing_codes.add(item["code"])
     session.commit()

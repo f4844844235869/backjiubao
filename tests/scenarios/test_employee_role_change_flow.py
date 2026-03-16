@@ -97,7 +97,7 @@ def test_employee_role_change_flow(client: TestClient) -> None:
     user_id = user_response.json()["data"]["id"]
 
     assign_role_response = client.put(
-        f"{settings.API_V1_STR}/iam/users/{user_id}/roles",
+        f"{settings.API_V1_STR}/iam/users/{user_id}/stores/{store_id}/roles",
         headers=admin_headers,
         json={"role_ids": [store_reader_role_id]},
     )
@@ -124,7 +124,7 @@ def test_employee_role_change_flow(client: TestClient) -> None:
     assert {item["id"] for item in stores_response.json()["data"]} == {store_id}
 
     replace_role_response = client.put(
-        f"{settings.API_V1_STR}/iam/users/{user_id}/roles",
+        f"{settings.API_V1_STR}/iam/users/{user_id}/stores/{store_id}/roles",
         headers=admin_headers,
         json={"role_ids": [empty_role_id]},
     )

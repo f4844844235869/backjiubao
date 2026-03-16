@@ -66,8 +66,8 @@ from app.modules.iam.models import (
     UserAuthorizationSummary,
     UserDataScope,
     UserDataScopeAssign,
-    UserRole,
     UserRoleAssign,
+    UserStoreRole,
 )
 from app.modules.miniapp.models import (
     MiniappAccount,
@@ -187,7 +187,7 @@ __all__ = [
     "UserOrgBindingUpdate",
     "UserPublic",
     "UserRegister",
-    "UserRole",
+    "UserStoreRole",
     "UserRoleAssign",
     "UsersPublic",
     "UserUpdate",

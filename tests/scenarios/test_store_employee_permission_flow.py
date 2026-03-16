@@ -151,7 +151,7 @@ def test_store_employee_permission_flow(client: TestClient) -> None:
 
     assign_manager_role_response = client.put(
         f"{settings.API_V1_STR}/iam/users/{manager_user_id}/roles",
-        headers=admin_headers,
+        headers={**admin_headers, "X-Current-Store-Id": store_a_id},
         json={"role_ids": [store_manager_role_id]},
     )
     assert assign_manager_role_response.status_code == 200
@@ -185,7 +185,7 @@ def test_store_employee_permission_flow(client: TestClient) -> None:
 
     manager_auth_summary_response = client.get(
         f"{settings.API_V1_STR}/iam/users/{manager_user_id}/authorization-summary",
-        headers=admin_headers,
+        headers={**admin_headers, "X-Current-Store-Id": store_a_id},
     )
     assert manager_auth_summary_response.status_code == 200
     manager_auth_summary = manager_auth_summary_response.json()["data"]
@@ -405,7 +405,7 @@ def test_store_employee_permission_flow(client: TestClient) -> None:
 
     manager_assign_high_role_response = client.put(
         f"{settings.API_V1_STR}/iam/users/{same_store_employee_id}/roles",
-        headers=manager_headers,
+        headers={**manager_headers, "X-Current-Store-Id": store_a_id},
         json={"role_ids": [admin_like_role_id]},
     )
     assert manager_assign_high_role_response.status_code == 403
