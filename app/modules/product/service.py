@@ -1,8 +1,8 @@
 import uuid
-from datetime import datetime
 
 from sqlmodel import Session, select
 
+from app.models.base import get_datetime_utc
 from app.modules.product.models import (
     Product,
     ProductCategory,
@@ -60,7 +60,7 @@ def update_product_category(
     category: ProductCategory,
     data: dict,
 ) -> ProductCategory:
-    data["updated_at"] = datetime.now()
+    data["updated_at"] = get_datetime_utc()
     for key, value in data.items():
         setattr(category, key, value)
     session.add(category)
@@ -134,7 +134,7 @@ def create_product(*, session: Session, body: ProductCreate) -> Product:
 def update_product(
     *, session: Session, product: Product, data: dict
 ) -> Product:
-    data["updated_at"] = datetime.now()
+    data["updated_at"] = get_datetime_utc()
     for key, value in data.items():
         setattr(product, key, value)
     session.add(product)
@@ -183,7 +183,7 @@ def create_product_sku(*, session: Session, body: ProductSkuCreate) -> ProductSk
 def update_product_sku(
     *, session: Session, sku: ProductSku, data: dict
 ) -> ProductSku:
-    data["updated_at"] = datetime.now()
+    data["updated_at"] = get_datetime_utc()
     for key, value in data.items():
         setattr(sku, key, value)
     session.add(sku)
@@ -238,7 +238,7 @@ def create_store_product(
 def update_store_product(
     *, session: Session, store_product: StoreProduct, data: dict
 ) -> StoreProduct:
-    data["updated_at"] = datetime.now()
+    data["updated_at"] = get_datetime_utc()
     for key, value in data.items():
         setattr(store_product, key, value)
     session.add(store_product)
@@ -293,7 +293,7 @@ def create_store_product_sku(
 def update_store_product_sku(
     *, session: Session, store_product_sku: StoreProductSku, data: dict
 ) -> StoreProductSku:
-    data["updated_at"] = datetime.now()
+    data["updated_at"] = get_datetime_utc()
     for key, value in data.items():
         setattr(store_product_sku, key, value)
     session.add(store_product_sku)
@@ -337,7 +337,7 @@ def create_sku_inventory_mapping(
 def update_sku_inventory_mapping(
     *, session: Session, mapping: SkuInventoryMapping, data: dict
 ) -> SkuInventoryMapping:
-    data["updated_at"] = datetime.now()
+    data["updated_at"] = get_datetime_utc()
     for key, value in data.items():
         setattr(mapping, key, value)
     session.add(mapping)
