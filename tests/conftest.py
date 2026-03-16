@@ -15,10 +15,16 @@ from app.models import (
     Notification,
     OrgNode,
     Permission,
+    Product,
+    ProductCategory,
+    ProductSku,
     Role,
     RoleGrant,
     RolePermission,
+    SkuInventoryMapping,
     Store,
+    StoreProduct,
+    StoreProductSku,
     User,
     UserDataScope,
     UserOrgBinding,
@@ -61,6 +67,18 @@ def db() -> Generator[Session, None, None]:
         statement = delete(UserOrgBinding)
         session.execute(statement)
         statement = delete(OrgNode)
+        session.execute(statement)
+        statement = delete(SkuInventoryMapping)
+        session.execute(statement)
+        statement = delete(StoreProductSku)
+        session.execute(statement)
+        statement = delete(StoreProduct)
+        session.execute(statement)
+        statement = delete(ProductSku)
+        session.execute(statement)
+        statement = delete(Product)
+        session.execute(statement)
+        statement = delete(ProductCategory)
         session.execute(statement)
         statement = delete(Store)
         session.execute(statement)

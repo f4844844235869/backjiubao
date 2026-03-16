@@ -72,6 +72,10 @@ DEFAULT_PERMISSION_DEFS = [
     {"code": "org.binding.read", "name": "查看组织绑定", "module": "org"},
     {"code": "org.binding.create", "name": "创建组织绑定", "module": "org"},
     {"code": "org.binding.update", "name": "更新组织绑定", "module": "org"},
+    {"code": "product.category.read", "name": "查看商品分类", "module": "product"},
+    {"code": "product.category.manage", "name": "管理商品分类", "module": "product"},
+    {"code": "product.read", "name": "查看商品", "module": "product"},
+    {"code": "product.manage", "name": "管理商品", "module": "product"},
 ]
 
 SAMPLE_ROLE_DEFS = [
