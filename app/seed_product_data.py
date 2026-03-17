@@ -15,6 +15,14 @@ from sqlmodel import Session
 from app.core.db import engine
 from app.modules.product.models import (
     Product,
+    ProductAttribute,
+    ProductAttributeAssignment,
+    ProductAttributeAssignmentCreate,
+    ProductAttributeAssignmentValue,
+    ProductAttributeAssignmentValueCreate,
+    ProductAttributeCreate,
+    ProductAttributeValue,
+    ProductAttributeValueCreate,
     ProductCategory,
     ProductCategoryCreate,
     ProductCreate,
@@ -27,15 +35,26 @@ from app.modules.product.models import (
 )
 from app.modules.product.service import (
     create_product,
+    create_product_attribute,
+    create_product_attribute_assignment,
+    create_product_attribute_assignment_value,
+    create_product_attribute_value,
     create_product_category,
     create_product_sku,
     create_store_product,
     create_store_product_sku,
+    generate_product_skus,
+    get_product_attribute_assignment,
+    get_product_attribute_assignment_value,
+    get_product_attribute_by_code,
+    get_product_attribute_value_by_code,
     get_product_by_code,
     get_product_category_by_code,
     get_product_sku_by_code,
     get_store_product,
     get_store_product_sku,
+    list_product_skus,
+    update_product_sku,
 )
 from app.modules.store.service import get_store_by_code
 
@@ -138,6 +157,54 @@ STORE_SKU_PRICES: dict[str, dict[str, Decimal]] = {
 
 DEMO_STORE_CODES = ["xinghe", "jiangnan", "college"]
 
+ATTRIBUTE_DEFS = [
+    {
+        "code": "cup_size",
+        "name": "杯型",
+        "sort_order": 1,
+        "values": [
+            {"code": "small", "name": "小杯", "sort_order": 1},
+            {"code": "large", "name": "大杯", "sort_order": 2},
+        ],
+    },
+    {
+        "code": "tea_base",
+        "name": "茶底",
+        "sort_order": 2,
+        "values": [
+            {"code": "jasmine", "name": "茉莉", "sort_order": 1},
+            {"code": "oolong", "name": "乌龙", "sort_order": 2},
+        ],
+    },
+]
+
+ATTRIBUTE_PRODUCT_DEFS = [
+    {
+        "code": "PRD-TEA-001",
+        "name": "鲜果茶",
+        "category_code": "CAT-DRINKS",
+        "unit": "杯",
+        "suggested_price": Decimal("26.00"),
+        "product_type": "NORMAL",
+        "attributes": [
+            {"attribute_code": "cup_size", "sort_order": 1, "value_codes": ["small", "large"]},
+            {"attribute_code": "tea_base", "sort_order": 2, "value_codes": ["jasmine", "oolong"]},
+        ],
+        "sku_updates": {
+            "小杯-茉莉": {"suggested_price": Decimal("26.00"), "barcode": "TEA001-S-JAS"},
+            "小杯-乌龙": {"suggested_price": Decimal("26.00"), "barcode": "TEA001-S-OOL"},
+            "大杯-茉莉": {"suggested_price": Decimal("32.00"), "barcode": "TEA001-L-JAS"},
+            "大杯-乌龙": {"suggested_price": Decimal("32.00"), "barcode": "TEA001-L-OOL"},
+        },
+        "store_prices": {
+            "小杯-茉莉": {"xinghe": Decimal("28.00"), "jiangnan": Decimal("27.00"), "college": Decimal("26.00")},
+            "小杯-乌龙": {"xinghe": Decimal("28.00"), "jiangnan": Decimal("27.00"), "college": Decimal("26.00")},
+            "大杯-茉莉": {"xinghe": Decimal("34.00"), "jiangnan": Decimal("33.00"), "college": Decimal("32.00")},
+            "大杯-乌龙": {"xinghe": Decimal("34.00"), "jiangnan": Decimal("33.00"), "college": Decimal("32.00")},
+        },
+    }
+]
+
 
 # ---------------------------------------------------------------------------
 # 幂等辅助函数
@@ -186,6 +253,107 @@ def _ensure_product(session: Session, pdef: dict, category_id) -> Product:
         )
         logger.info("  创建商品: %s (%s)", pdef["name"], pdef["code"])
     return product
+
+
+def _ensure_attribute(session: Session, adef: dict) -> ProductAttribute:
+    attribute = get_product_attribute_by_code(session=session, code=adef["code"])
+    if not attribute:
+        attribute = create_product_attribute(
+            session=session,
+            body=ProductAttributeCreate(
+                code=adef["code"],
+                name=adef["name"],
+                sort_order=adef.get("sort_order", 0),
+            ),
+        )
+        logger.info("  创建属性: %s (%s)", adef["name"], adef["code"])
+    return attribute
+
+
+def _ensure_attribute_value(
+    session: Session,
+    *,
+    attribute: ProductAttribute,
+    value_def: dict,
+) -> ProductAttributeValue:
+    value = get_product_attribute_value_by_code(
+        session=session,
+        attribute_id=attribute.id,
+        code=value_def["code"],
+    )
+    if not value:
+        value = create_product_attribute_value(
+            session=session,
+            body=ProductAttributeValueCreate(
+                attribute_id=attribute.id,
+                code=value_def["code"],
+                name=value_def["name"],
+                sort_order=value_def.get("sort_order", 0),
+            ),
+        )
+        logger.info(
+            "    创建属性值: %s / %s (%s)",
+            attribute.name,
+            value_def["name"],
+            value_def["code"],
+        )
+    return value
+
+
+def _ensure_product_attribute_assignment(
+    session: Session,
+    *,
+    product: Product,
+    attribute: ProductAttribute,
+    sort_order: int,
+) -> ProductAttributeAssignment:
+    assignment = get_product_attribute_assignment(
+        session=session,
+        product_id=product.id,
+        attribute_id=attribute.id,
+    )
+    if not assignment:
+        assignment = create_product_attribute_assignment(
+            session=session,
+            body=ProductAttributeAssignmentCreate(
+                product_id=product.id,
+                attribute_id=attribute.id,
+                sort_order=sort_order,
+                is_required=True,
+            ),
+        )
+        logger.info("    绑定商品属性: %s -> %s", product.name, attribute.name)
+    return assignment
+
+
+def _ensure_product_attribute_assignment_value(
+    session: Session,
+    *,
+    assignment: ProductAttributeAssignment,
+    attribute_value: ProductAttributeValue,
+    sort_order: int,
+) -> ProductAttributeAssignmentValue:
+    assignment_value = get_product_attribute_assignment_value(
+        session=session,
+        assignment_id=assignment.id,
+        attribute_value_id=attribute_value.id,
+    )
+    if not assignment_value:
+        assignment_value = create_product_attribute_assignment_value(
+            session=session,
+            body=ProductAttributeAssignmentValueCreate(
+                assignment_id=assignment.id,
+                attribute_value_id=attribute_value.id,
+                sort_order=sort_order,
+                is_default=sort_order == 1,
+            ),
+        )
+        logger.info(
+            "      绑定属性值: %s -> %s",
+            assignment.attribute.name if assignment.attribute else assignment.id,
+            attribute_value.name,
+        )
+    return assignment_value
 
 
 def _ensure_sku(session: Session, sdef: dict, product_id) -> ProductSku:
@@ -265,6 +433,60 @@ def seed_product_data(session: Session) -> None:
             skus.append(sku)
         product_sku_map[pdef["code"]] = skus
 
+    logger.info("=== 初始化属性驱动商品与SKU ===")
+    attribute_map: dict[str, ProductAttribute] = {}
+    attribute_value_map: dict[tuple[str, str], ProductAttributeValue] = {}
+    for adef in ATTRIBUTE_DEFS:
+        attribute = _ensure_attribute(session=session, adef=adef)
+        attribute_map[adef["code"]] = attribute
+        for value_def in adef["values"]:
+            attribute_value = _ensure_attribute_value(
+                session=session,
+                attribute=attribute,
+                value_def=value_def,
+            )
+            attribute_value_map[(adef["code"], value_def["code"])] = attribute_value
+
+    for pdef in ATTRIBUTE_PRODUCT_DEFS:
+        cat = category_map[pdef["category_code"]]
+        product = _ensure_product(session=session, pdef=pdef, category_id=cat.id)
+        for assignment_def in pdef["attributes"]:
+            attribute = attribute_map[assignment_def["attribute_code"]]
+            assignment = _ensure_product_attribute_assignment(
+                session=session,
+                product=product,
+                attribute=attribute,
+                sort_order=assignment_def.get("sort_order", 0),
+            )
+            for index, value_code in enumerate(assignment_def["value_codes"], start=1):
+                attribute_value = attribute_value_map[(assignment_def["attribute_code"], value_code)]
+                _ensure_product_attribute_assignment_value(
+                    session=session,
+                    assignment=assignment,
+                    attribute_value=attribute_value,
+                    sort_order=index,
+                )
+
+        generated = generate_product_skus(session=session, product=product)
+        logger.info(
+            "  生成属性SKU: %s created=%s retained=%s deactivated=%s",
+            product.name,
+            len(generated["created"]),
+            len(generated["retained"]),
+            len(generated["deactivated"]),
+        )
+        for sku in list_product_skus(session=session, product_id=product.id):
+            sku_update = pdef.get("sku_updates", {}).get(sku.name)
+            if not sku_update:
+                continue
+            update_product_sku(
+                session=session,
+                sku=sku,
+                data=sku_update,
+            )
+            logger.info("    更新生成SKU: %s (%s)", sku.name, sku.code)
+            sku_map[sku.code] = sku
+
     logger.info("=== 初始化门店商品与门店SKU ===")
     for store_code in DEMO_STORE_CODES:
         store = get_store_by_code(session=session, code=store_code)
@@ -281,6 +503,22 @@ def seed_product_data(session: Session) -> None:
                 sku = sku_map[sdef["code"]]
                 prices = STORE_SKU_PRICES.get(sdef["code"], {})
                 sale_price = prices.get(store_code, sdef.get("suggested_price", Decimal("0")))
+                _ensure_store_product_sku(
+                    session=session,
+                    store_id=store.id,
+                    product_id=product.id,
+                    sku_id=sku.id,
+                    sale_price=sale_price,
+                )
+        for pdef in ATTRIBUTE_PRODUCT_DEFS:
+            product = get_product_by_code(session=session, code=pdef["code"])
+            assert product is not None
+            _ensure_store_product(session=session, store_id=store.id, product_id=product.id)
+            for sku in list_product_skus(session=session, product_id=product.id):
+                sale_price = pdef["store_prices"].get(sku.name, {}).get(
+                    store_code,
+                    sku.suggested_price or product.suggested_price or Decimal("0"),
+                )
                 _ensure_store_product_sku(
                     session=session,
                     store_id=store.id,
