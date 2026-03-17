@@ -11,6 +11,7 @@ from app.models.base import get_datetime_utc
 if TYPE_CHECKING:
     from app.modules.iam.models import UserStoreRole
     from app.modules.org.models import OrgNode
+    from app.modules.product.models import StoreProduct, StoreProductSku
 
 
 class StoreBase(SQLModel):
@@ -45,6 +46,10 @@ class Store(StoreBase, table=True):
     )
     org_nodes: list["OrgNode"] = Relationship(back_populates="store")
     user_store_roles: list["UserStoreRole"] = Relationship(back_populates="store")
+    store_products: list["StoreProduct"] = Relationship(back_populates="store")
+    store_product_skus: list["StoreProductSku"] = Relationship(
+        back_populates="store"
+    )
 
 
 class StorePublic(StoreBase):
