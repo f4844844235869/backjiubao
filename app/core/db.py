@@ -96,6 +96,10 @@ SAMPLE_ROLE_DEFS = [
             "org.binding.create",
             "org.binding.update",
             "iam.user.read",
+            "product.category.read",
+            "product.category.manage",
+            "product.read",
+            "product.manage",
         ],
     },
     {
@@ -111,6 +115,8 @@ SAMPLE_ROLE_DEFS = [
             "org.binding.read",
             "org.binding.create",
             "org.binding.update",
+            "product.read",
+            "product.manage",
         ],
     },
     {
@@ -121,6 +127,7 @@ SAMPLE_ROLE_DEFS = [
             "org.store.read",
             "org.node.read",
             "org.binding.read",
+            "product.read",
         ],
     },
     {

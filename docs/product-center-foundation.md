@@ -192,6 +192,84 @@
 
 ---
 
+## 3. 动态属性化补充（2026-03-17）
+
+在基础商品中心之上，新增“商品属性驱动 SKU”能力。
+
+### 3.1 新增表
+
+新增 5 张表：
+
+- `product_attribute`
+- `product_attribute_value`
+- `product_attribute_assignment`
+- `product_attribute_assignment_value`
+- `product_sku_attribute_value`
+
+作用：
+
+- 定义属性与属性值
+- 绑定商品可参与 SKU 组合的属性
+- 绑定商品在每个属性下允许的值
+- 记录 SKU 由哪些属性值组合生成
+
+### 3.2 新增接口
+
+新增接口组：
+
+- `GET/POST/PATCH /api/v1/product-attributes`
+- `GET/POST /api/v1/product-attributes/{attribute_id}/values`
+- `PATCH /api/v1/product-attribute-values/{attribute_value_id}`
+- `GET/POST/PATCH /api/v1/products/{product_id}/attributes`
+- `POST /api/v1/products/{product_id}/attributes/{assignment_id}/values`
+- `DELETE /api/v1/products/{product_id}/attributes/{assignment_id}/values/{assignment_value_id}`
+- `POST /api/v1/products/{product_id}/skus/generate`
+- `GET /api/v1/skus/{sku_id}`
+
+### 3.3 SKU 生成规则
+
+- 商品绑定属性和值后，通过 `POST /products/{product_id}/skus/generate` 自动生成 SKU
+- SKU 编码规则：`{product_code}-{seq}`
+- SKU 名称规则：按属性排序拼接值名称，例如 `大杯-红色`
+- 已不再属于目标组合的旧 SKU 自动停用
+- 同一商品仅保留一个默认 SKU
+
+### 3.4 兼容说明
+
+- 无属性商品仍允许手工创建单 SKU
+- 已绑定属性的商品禁止手工创建任意 SKU，返回 `PRODUCT_SKU_MANAGED_BY_ATTRIBUTES`
+
+更多设计说明见：
+
+- [product-center-attribute-sku.md](./product-center-attribute-sku.md)
+
+### 3.5 前端改造重点
+
+商品中心前端需要同步调整为“属性驱动 SKU”模式：
+
+- 商品编辑页从“手工维护 SKU 列表”改为“先配置属性和值，再生成 SKU”
+- 已绑定属性的商品隐藏手工新增 SKU 入口
+- SKU 列表新增“属性值组合”列，优先使用接口返回的 `attribute_values`
+- 商品详情页建议拆分为：
+  - 基础信息
+  - 属性配置
+  - SKU 生成结果
+  - SKU 业务规则编辑
+- 重新生成 SKU 时，前端应明确提示：
+  - 会新增哪些 SKU
+  - 会停用哪些旧 SKU
+  - 已存在组合会复用原 SKU
+
+建议前端联调时优先接通以下接口：
+
+- `GET /api/v1/products/{product_id}/attributes`
+- `POST /api/v1/products/{product_id}/attributes`
+- `POST /api/v1/products/{product_id}/skus/generate`
+- `GET /api/v1/products/{product_id}/skus`
+- `GET /api/v1/skus/{sku_id}`
+
+---
+
 ### 2.1 商品分类接口
 
 #### `GET /api/v1/product-categories/`

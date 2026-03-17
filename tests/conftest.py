@@ -2,7 +2,7 @@ from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session, delete
+from sqlmodel import Session, SQLModel, delete
 
 from app.core.config import settings
 from app.core.db import engine, init_db
@@ -16,8 +16,13 @@ from app.models import (
     OrgNode,
     Permission,
     Product,
+    ProductAttribute,
+    ProductAttributeAssignment,
+    ProductAttributeAssignmentValue,
+    ProductAttributeValue,
     ProductCategory,
     ProductSku,
+    ProductSkuAttributeValue,
     Role,
     RoleGrant,
     RolePermission,
@@ -38,6 +43,7 @@ from tests.utils.utils import get_superuser_token_headers
 @pytest.fixture(scope="session", autouse=True)
 def db() -> Generator[Session, None, None]:
     with Session(engine) as session:
+        SQLModel.metadata.create_all(engine)
         init_db(session)
         yield session
         statement = delete(Item)
@@ -70,11 +76,21 @@ def db() -> Generator[Session, None, None]:
         session.execute(statement)
         statement = delete(SkuInventoryMapping)
         session.execute(statement)
+        statement = delete(ProductSkuAttributeValue)
+        session.execute(statement)
         statement = delete(StoreProductSku)
         session.execute(statement)
         statement = delete(StoreProduct)
         session.execute(statement)
         statement = delete(ProductSku)
+        session.execute(statement)
+        statement = delete(ProductAttributeAssignmentValue)
+        session.execute(statement)
+        statement = delete(ProductAttributeAssignment)
+        session.execute(statement)
+        statement = delete(ProductAttributeValue)
+        session.execute(statement)
+        statement = delete(ProductAttribute)
         session.execute(statement)
         statement = delete(Product)
         session.execute(statement)

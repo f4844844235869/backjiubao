@@ -13,14 +13,7 @@ if TYPE_CHECKING:
     from app.modules.store.models import Store
 
 
-# ---------------------------------------------------------------------------
-# 枚举常量（用字符串常量代替 Python Enum，与现有代码风格一致）
-# ---------------------------------------------------------------------------
-# product_type: NORMAL / SERVICE / FEE / VIRTUAL
-# fund_usage_type: CASH_OR_PRINCIPAL_ONLY / GIFT_ONLY / ALL_ALLOWED /
-#                 NO_MEMBER_BALANCE / OFFLINE_ONLY
-# commission_type: NONE / FIXED / RATIO
-# inventory_mode: NONE / DIRECT / MAPPING
+DISPLAY_TYPE_SELECT = "SELECT"
 
 
 # ---------------------------------------------------------------------------
@@ -236,12 +229,251 @@ class Product(ProductBase, table=True):
     store_product_skus: list["StoreProductSku"] = Relationship(
         back_populates="product"
     )
+    attribute_assignments: list["ProductAttributeAssignment"] = Relationship(
+        back_populates="product"
+    )
 
 
 class ProductPublic(ProductBase):
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# ProductAttribute
+# ---------------------------------------------------------------------------
+
+
+class ProductAttributeBase(SQLModel):
+    code: str = Field(max_length=64, description="属性编码")
+    name: str = Field(max_length=128, description="属性名称")
+    display_type: str = Field(
+        default=DISPLAY_TYPE_SELECT,
+        max_length=32,
+        description="展示类型，仅支持 SELECT",
+    )
+    sort_order: int = Field(default=0, description="排序")
+    is_active: bool = Field(default=True, description="是否启用")
+
+
+class ProductAttributeCreate(ProductAttributeBase):
+    pass
+
+
+class ProductAttributeUpdate(SQLModel):
+    code: str | None = Field(default=None, max_length=64)
+    name: str | None = Field(default=None, max_length=128)
+    display_type: str | None = Field(default=None, max_length=32)
+    sort_order: int | None = Field(default=None)
+    is_active: bool | None = Field(default=None)
+
+
+class ProductAttribute(ProductAttributeBase, table=True):
+    __tablename__ = "product_attribute"
+    __table_args__ = (UniqueConstraint("code", name="uq_prod_attr_code"),)
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+    values: list["ProductAttributeValue"] = Relationship(back_populates="attribute")
+    assignments: list["ProductAttributeAssignment"] = Relationship(
+        back_populates="attribute"
+    )
+    sku_attribute_values: list["ProductSkuAttributeValue"] = Relationship(
+        back_populates="attribute"
+    )
+
+
+class ProductAttributePublic(ProductAttributeBase):
+    id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class ProductAttributeValueBase(SQLModel):
+    attribute_id: uuid.UUID = Field(
+        foreign_key="product_attribute.id",
+        description="属性ID",
+    )
+    code: str = Field(max_length=64, description="属性值编码")
+    name: str = Field(max_length=128, description="属性值名称")
+    sort_order: int = Field(default=0, description="排序")
+    is_active: bool = Field(default=True, description="是否启用")
+
+
+class ProductAttributeValueCreate(SQLModel):
+    attribute_id: uuid.UUID
+    code: str = Field(max_length=64)
+    name: str = Field(max_length=128)
+    sort_order: int = Field(default=0)
+    is_active: bool = Field(default=True)
+
+
+class ProductAttributeValueUpdate(SQLModel):
+    code: str | None = Field(default=None, max_length=64)
+    name: str | None = Field(default=None, max_length=128)
+    sort_order: int | None = Field(default=None)
+    is_active: bool | None = Field(default=None)
+
+
+class ProductAttributeValue(ProductAttributeValueBase, table=True):
+    __tablename__ = "product_attribute_value"
+    __table_args__ = (
+        UniqueConstraint(
+            "attribute_id",
+            "code",
+            name="uq_prod_attr_val_attr_code",
+        ),
+        UniqueConstraint(
+            "attribute_id",
+            "name",
+            name="uq_prod_attr_val_attr_name",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+    attribute: Optional["ProductAttribute"] = Relationship(back_populates="values")
+    assignment_values: list["ProductAttributeAssignmentValue"] = Relationship(
+        back_populates="attribute_value"
+    )
+    sku_attribute_values: list["ProductSkuAttributeValue"] = Relationship(
+        back_populates="attribute_value"
+    )
+
+
+class ProductAttributeValuePublic(ProductAttributeValueBase):
+    id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class ProductAttributeAssignmentBase(SQLModel):
+    product_id: uuid.UUID = Field(foreign_key="product.id", description="商品ID")
+    attribute_id: uuid.UUID = Field(
+        foreign_key="product_attribute.id",
+        description="属性ID",
+    )
+    sort_order: int = Field(default=0, description="排序")
+    is_required: bool = Field(default=True, description="是否必选")
+
+
+class ProductAttributeAssignmentCreate(SQLModel):
+    product_id: uuid.UUID
+    attribute_id: uuid.UUID
+    sort_order: int = Field(default=0)
+    is_required: bool = Field(default=True)
+
+
+class ProductAttributeAssignmentUpdate(SQLModel):
+    sort_order: int | None = Field(default=None)
+    is_required: bool | None = Field(default=None)
+
+
+class ProductAttributeAssignment(ProductAttributeAssignmentBase, table=True):
+    __tablename__ = "product_attribute_assignment"
+    __table_args__ = (
+        UniqueConstraint(
+            "product_id",
+            "attribute_id",
+            name="uq_prod_attr_asg_prod_attr",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+    product: Optional["Product"] = Relationship(back_populates="attribute_assignments")
+    attribute: Optional["ProductAttribute"] = Relationship(back_populates="assignments")
+    values: list["ProductAttributeAssignmentValue"] = Relationship(
+        back_populates="assignment"
+    )
+
+
+class ProductAttributeAssignmentValueBase(SQLModel):
+    assignment_id: uuid.UUID = Field(
+        foreign_key="product_attribute_assignment.id",
+        description="商品属性绑定ID",
+    )
+    attribute_value_id: uuid.UUID = Field(
+        foreign_key="product_attribute_value.id",
+        description="属性值ID",
+    )
+    sort_order: int = Field(default=0, description="排序")
+    is_default: bool = Field(default=False, description="是否默认值")
+
+
+class ProductAttributeAssignmentValueCreate(SQLModel):
+    assignment_id: uuid.UUID
+    attribute_value_id: uuid.UUID
+    sort_order: int = Field(default=0)
+    is_default: bool = Field(default=False)
+
+
+class ProductAttributeAssignmentValue(ProductAttributeAssignmentValueBase, table=True):
+    __tablename__ = "product_attribute_assignment_value"
+    __table_args__ = (
+        UniqueConstraint(
+            "assignment_id",
+            "attribute_value_id",
+            name="uq_prod_attr_asg_val_asg_val",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+    assignment: Optional["ProductAttributeAssignment"] = Relationship(
+        back_populates="values"
+    )
+    attribute_value: Optional["ProductAttributeValue"] = Relationship(
+        back_populates="assignment_values"
+    )
+
+
+class ProductAttributeAssignmentValuePublic(ProductAttributeAssignmentValueBase):
+    id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    attribute_value: ProductAttributeValuePublic
+
+
+class ProductAttributeAssignmentPublic(ProductAttributeAssignmentBase):
+    id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    attribute: ProductAttributePublic
+    values: list[ProductAttributeAssignmentValuePublic] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -301,8 +533,8 @@ class ProductSkuBase(SQLModel):
 
 class ProductSkuCreate(SQLModel):
     product_id: uuid.UUID
-    code: str = Field(max_length=64)
-    name: str = Field(max_length=128)
+    code: str | None = Field(default=None, max_length=64)
+    name: str | None = Field(default=None, max_length=128)
     spec_text: str | None = Field(default=None, max_length=256)
     suggested_price: Decimal | None = Field(default=None)
     barcode: str | None = Field(default=None, max_length=64)
@@ -321,7 +553,6 @@ class ProductSkuCreate(SQLModel):
 
 
 class ProductSkuUpdate(SQLModel):
-    code: str | None = Field(default=None, max_length=64)
     name: str | None = Field(default=None, max_length=128)
     spec_text: str | None = Field(default=None, max_length=256)
     suggested_price: Decimal | None = Field(default=None)
@@ -338,6 +569,7 @@ class ProductSkuUpdate(SQLModel):
     allow_negative_inventory: bool | None = Field(default=None)
     is_sale_enabled: bool | None = Field(default=None)
     is_active: bool | None = Field(default=None)
+    code: str | None = Field(default=None, max_length=64)
 
 
 class ProductSku(ProductSkuBase, table=True):
@@ -366,14 +598,79 @@ class ProductSku(ProductSkuBase, table=True):
         back_populates="sku"
     )
     inventory_mappings: list["SkuInventoryMapping"] = Relationship(
+        back_populates="sku",
+        sa_relationship_kwargs={"foreign_keys": "[SkuInventoryMapping.sku_id]"},
+    )
+    attribute_values: list["ProductSkuAttributeValue"] = Relationship(
         back_populates="sku"
     )
+
+
+class ProductSkuAttributeValueBase(SQLModel):
+    sku_id: uuid.UUID = Field(foreign_key="product_sku.id", description="SKU ID")
+    attribute_id: uuid.UUID = Field(
+        foreign_key="product_attribute.id", description="属性ID"
+    )
+    attribute_value_id: uuid.UUID = Field(
+        foreign_key="product_attribute_value.id",
+        description="属性值ID",
+    )
+
+
+class ProductSkuAttributeValue(ProductSkuAttributeValueBase, table=True):
+    __tablename__ = "product_sku_attribute_value"
+    __table_args__ = (
+        UniqueConstraint(
+            "sku_id",
+            "attribute_id",
+            name="uq_prod_sku_attr_val_sku_attr",
+        ),
+        UniqueConstraint(
+            "sku_id",
+            "attribute_value_id",
+            name="uq_prod_sku_attr_val_sku_val",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+    sku: Optional["ProductSku"] = Relationship(back_populates="attribute_values")
+    attribute: Optional["ProductAttribute"] = Relationship(
+        back_populates="sku_attribute_values"
+    )
+    attribute_value: Optional["ProductAttributeValue"] = Relationship(
+        back_populates="sku_attribute_values"
+    )
+
+
+class ProductSkuAttributeValuePublic(SQLModel):
+    attribute_id: uuid.UUID
+    attribute_code: str
+    attribute_name: str
+    attribute_value_id: uuid.UUID
+    attribute_value_code: str
+    attribute_value_name: str
 
 
 class ProductSkuPublic(ProductSkuBase):
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    attribute_values: list[ProductSkuAttributeValuePublic] = Field(default_factory=list)
+
+
+class ProductSkuGenerationSummary(SQLModel):
+    created: list[ProductSkuPublic] = Field(default_factory=list)
+    retained: list[ProductSkuPublic] = Field(default_factory=list)
+    deactivated: list[ProductSkuPublic] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
